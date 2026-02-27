@@ -41,7 +41,8 @@ agent-rules/                     ← This repo / 本仓库 (deployed to ~/.confi
 │   ├── cpp.md                   # C++17 rules / C++ 规范
 │   ├── cuda.md                  # CUDA kernel rules / CUDA 规范
 │   ├── pybind11.md              # PyBind11 bindings / PyBind11 绑定规范
-│   └── markdown.md              # Markdown writing / Markdown 写作规范
+│   ├── markdown.md              # Markdown writing / Markdown 写作规范
+│   └── git.md                   # Git commit messages / Git 提交信息规范
 │
 ├── templates/
 │   ├── overlay-template.md      # Template for .agent-local.md / 项目特定规则模板（含中文引导注释）
@@ -53,7 +54,8 @@ agent-rules/                     ← This repo / 本仓库 (deployed to ~/.confi
 │       ├── cpp.yaml             # globs: "**/*.{cpp,h,hpp,cc}"
 │       ├── cuda.yaml            # globs: "**/*.{cu,cuh,h,hpp}"
 │       ├── pybind11.yaml        # description-based (AI decides relevance)
-│       └── markdown.yaml        # globs: "**/*.md"
+│       ├── markdown.yaml        # globs: "**/*.md"
+│       └── git.yaml             # description-based (commit message context)
 │
 ├── scripts/
 │   ├── agent-sync.sh            # Sync rules to project / 同步规则到项目
