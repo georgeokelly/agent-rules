@@ -125,7 +125,7 @@ agent-check .
 
 # 5. Add generated files to .gitignore
 #    将生成文件加入 .gitignore
-echo -e '\n# AI agent rules (generated)\nCLAUDE.md\nAGENTS.md\n.cursor/rules/\n.agent-sync-hash\n.agent-sync-manifest' >> .gitignore
+echo -e '\n# AI agent rules (generated)\nCLAUDE.md\nAGENTS.md\n.cursor/rules/\n.cursorignore\n.agent-sync-hash\n.agent-sync-manifest' >> .gitignore
 
 # 6. Commit .agent-local.md (project-specific rules belong in git)
 #    提交 .agent-local.md（项目特定规则应进入 git）
@@ -166,6 +166,7 @@ cursor-go() { agent-sync "${1:-.}" && cursor "${1:-.}"; }
 1. **Missing closing `---`**: If YAML frontmatter is not properly closed, the rule **silently fails** — no error, no warning. `agent-check` validates this. / 如果 YAML 前置元数据没有正确闭合 `---`，规则会**静默失效**。`agent-check` 会检查这一点。
 2. **`.cursorrules` conflict**: If both `.cursorrules` and `.cursor/rules/*.mdc` exist, `.mdc` may silently override. Use only `.mdc`. / 如果同时存在 `.cursorrules` 和 `.mdc`，`.mdc` 可能静默覆盖。只使用 `.mdc`。
 3. **Injection vs Activation**: `alwaysApply: true` guarantees injection into context, but does not guarantee the model will follow every instruction. This is a fundamental limitation of prompt-based rules. / `alwaysApply: true` 保证注入上下文，但不保证模型一定遵循每条指令。这是基于 prompt 的规则的根本局限。
+4. **Duplicate context from CLAUDE.md/AGENTS.md**: Cursor indexes project files and may load `CLAUDE.md`/`AGENTS.md` into context, duplicating rules already in `.mdc` files. `agent-sync` auto-maintains `.cursorignore` to prevent this. / Cursor 会索引项目文件，可能将 `CLAUDE.md`/`AGENTS.md` 加载进上下文，导致规则重复。`agent-sync` 会自动维护 `.cursorignore` 来防止这个问题。
 
 ### OpenAI Codex
 

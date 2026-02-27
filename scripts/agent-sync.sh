@@ -169,6 +169,16 @@ fi
 
 echo "  Cursor: $(ls "$PROJECT_DIR/.cursor/rules/"*.mdc 2>/dev/null | wc -l | tr -d ' ') .mdc files"
 
+# --- Ensure .cursorignore excludes CLAUDE.md/AGENTS.md ---
+
+CURSORIGNORE="$PROJECT_DIR/.cursorignore"
+IGNORE_ENTRIES=("CLAUDE.md" "AGENTS.md")
+for entry in "${IGNORE_ENTRIES[@]}"; do
+    if [ ! -f "$CURSORIGNORE" ] || ! grep -qxF "$entry" "$CURSORIGNORE"; then
+        echo "$entry" >> "$CURSORIGNORE"
+    fi
+done
+
 # --- Generate CLAUDE.md ---
 
 CLAUDE_FILE="$PROJECT_DIR/CLAUDE.md"
