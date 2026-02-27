@@ -52,3 +52,54 @@ Example:
 > **WARNING**: This operation modifies the tensor in-place. Clone the tensor first
 > if you need to preserve the original data.
 ```
+
+## Line Breaks in Enumerated Items
+
+### Consecutive Key-Value Lines (MUST)
+
+When multiple "label: content" lines appear consecutively (e.g. `**field**: value`),
+every line **must** have an explicit line break. This applies to:
+
+1. Lines inside blockquotes (prefixed with `>`)
+2. Lines in normal paragraphs (no `>`)
+
+#### What Counts as "Consecutive Enumerated Lines"
+
+- `**xxx**: yyy`
+- `**xxx**：yyy`
+- Any sequence of short "label: content" lines appearing back-to-back
+
+#### Line Break Requirements
+
+- Preferred: append `<br>` at the end of each line (most stable, consistent across renderers)
+- Acceptable: two trailing spaces (not recommended — easily lost by editors/formatters)
+- Acceptable: rewrite as a proper Markdown list (`- `), which renders correctly without `<br>`
+
+#### Prohibited Patterns
+
+- **MUST NOT** rely on plain newlines (soft line breaks) to create visual line breaks
+- **MUST NOT** mix styles within a single group (some lines with `<br>`, some without)
+
+```markdown
+# Good: every line has <br>
+**Paper**: ...<br>
+**Code**: ...<br>
+**Authors**: ...<br>
+**Affiliation**: ...<br>
+**Date**: ...
+
+# Good: proper list (no <br> needed)
+- **Paper**: ...
+- **Code**: ...
+- **Authors**: ...
+
+# Bad: plain newlines only — renders as a single paragraph
+**Paper**: ...
+**Code**: ...
+**Authors**: ...
+
+# Bad: inconsistent — some lines break, some don't
+**Paper**: ...<br>
+**Code**: ...
+**Authors**: ...<br>
+```
