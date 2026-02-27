@@ -44,10 +44,11 @@ agent-rules/                     ← This repo / 本仓库 (deployed to ~/.confi
 │   └── markdown.md              # Markdown writing / Markdown 写作规范
 │
 ├── templates/
-│   ├── overlay-template.md      # Template for .agent-local.md / 项目特定规则模板
+│   ├── overlay-template.md      # Template for .agent-local.md / 项目特定规则模板（含中文引导注释）
 │   └── cursor-frontmatter/      # YAML frontmatter for .mdc / Cursor 前置元数据
 │       ├── communication.yaml   # alwaysApply: true
 │       ├── workflow.yaml        # alwaysApply: true
+│       ├── quality-gates.yaml   # alwaysApply: true
 │       ├── python.yaml          # globs: "**/*.py"
 │       ├── cpp.yaml             # globs: "**/*.{cpp,h,hpp,cc}"
 │       ├── cuda.yaml            # globs: "**/*.{cu,cuh,h,hpp}"
@@ -67,21 +68,32 @@ agent-rules/                     ← This repo / 本仓库 (deployed to ~/.confi
 
 ### First-Time Setup / 首次设置
 
+The rule system is deployed as a single git clone per machine. All source files are read-only — modifications should only be made via git commits in the repo, then pulled.
+
+每台机器上只需要一个 git clone。所有源文件只读 — 修改规则应该在仓库中 commit，然后 pull 更新。
+
 ```bash
-# 1. Deploy this repo as your central rules repo
-#    将本仓库部署为中央规则仓库
-mkdir -p ~/.config/agent-rules
-cp -r core/ packs/ templates/ scripts/ ~/.config/agent-rules/
+# 1. Clone the rules repo (one-time, per machine)
+#    克隆规则仓库（每台机器一次）
+git clone https://github.com/georgeokelly/agent-rules.git ~/.config/agent-rules
 
-# 2. (Optional) Initialize as git repo for version tracking
-#    （可选）初始化为 git 仓库以追踪版本
-cd ~/.config/agent-rules && git init && git add . && git commit -m "Initial rules"
+# 2. Make source files read-only (prevent accidental edits)
+#    将源文件设为只读（防止意外修改）
+chmod -R a-w ~/.config/agent-rules/{core,packs,templates}
 
-# 3. Add shell alias
+# 3. Add shell aliases
 #    添加 shell 别名
 echo 'alias agent-sync="~/.config/agent-rules/scripts/agent-sync.sh"' >> ~/.zshrc
 echo 'alias agent-check="~/.config/agent-rules/scripts/agent-check.sh"' >> ~/.zshrc
 source ~/.zshrc
+```
+
+To update rules on this machine / 在本机更新规则:
+
+```bash
+chmod -R u+w ~/.config/agent-rules/{core,packs,templates}  # temporarily unlock
+cd ~/.config/agent-rules && git pull
+chmod -R a-w ~/.config/agent-rules/{core,packs,templates}   # re-lock
 ```
 
 ### Per-Project Setup / 项目设置
@@ -89,10 +101,10 @@ source ~/.zshrc
 ```bash
 # 1. Go to your project
 #    进入项目目录
-cd ~/workspace/my-project
+cd /path/to/workspace/my-project
 
-# 2. Create project-specific rules from template
-#    从模板创建项目特定规则
+# 2. Create project-specific rules from template (this is the only file you edit)
+#    从模板创建项目特定规则（这是唯一需要编辑的文件）
 cp ~/.config/agent-rules/templates/overlay-template.md .agent-local.md
 # Edit .agent-local.md — fill in project structure, build commands, etc.
 # 编辑 .agent-local.md — 填写项目结构、构建命令等
@@ -107,7 +119,7 @@ agent-check .
 
 # 5. Add generated files to .gitignore
 #    将生成文件加入 .gitignore
-echo -e '\n# AI agent rules (generated)\nCLAUDE.md\nAGENTS.md\n.cursor/rules/\n.agent-sync-hash' >> .gitignore
+echo -e '\n# AI agent rules (generated)\nCLAUDE.md\nAGENTS.md\n.cursor/rules/\n.agent-sync-hash\n.agent-sync-manifest\n.github-markdown-preview.css\n.vscode/settings.json' >> .gitignore
 
 # 6. Commit .agent-local.md (project-specific rules belong in git)
 #    提交 .agent-local.md（项目特定规则应进入 git）
@@ -254,7 +266,9 @@ After modifying rules, test with these fixed tasks across all 3 tools:
 | Trigger / 触发条件 | Action / 操作 |
 |---|---|
 | Modified any file in `~/.config/agent-rules/` / 修改了规则仓库中的任何文件 | `agent-sync .` in each project / 在每个项目中运行 |
+| Modified `.agent-local.md` (root or sub-repo) / 修改了项目 overlay | `agent-sync .` (auto-detected / 自动检测) |
 | First time setting up a project / 首次设置项目 | `agent-sync .` |
+| Deleted a sub-repo `.agent-local.md` / 删除了子目录 overlay | `agent-sync .` (auto-cleans ghost rules / 自动清理残留规则) |
 | Generated files accidentally deleted / 生成文件被意外删除 | `agent-sync .` |
 | Nothing changed / 没有变化 | Script auto-detects and skips / 脚本自动检测并跳过 |
 
@@ -299,3 +313,15 @@ Yes. It contains project-specific rules that the whole team (and all AI tools) s
 Split language packs into subdirectory `AGENTS.md` files (e.g., `python/AGENTS.md`). Codex merges them hierarchically. Or reduce rule content — review for tutorial-style code that can be moved to `docs/examples/`.
 
 将语言包拆分为子目录的 `AGENTS.md` 文件（如 `python/AGENTS.md`）。Codex 会层级合并。或者精简规则内容 — 检查是否有教程式代码可以移到 `docs/examples/`。
+
+**Q: Do HTML comments in `.agent-local.md` waste agent tokens? / `.agent-local.md` 中的 HTML 注释会浪费 token 吗？**
+
+No. `agent-sync` automatically strips all `<!-- ... -->` comments during compilation. You can keep detailed Chinese annotations in `.agent-local.md` for your own reference — they will not appear in the generated `CLAUDE.md`, `AGENTS.md`, or `.mdc` files.
+
+不会。`agent-sync` 在编译时会自动去除所有 `<!-- ... -->` 注释。你可以在 `.agent-local.md` 中保留详细的中文引导注释供自己参考 — 它们不会出现在生成的文件中。
+
+**Q: How to use with a multi-repo workspace? / 多 repo 的 workspace 怎么用？**
+
+Place `.agent-local.md` at the workspace root (shared rules) and in each sub-repo (repo-specific rules). `agent-sync` recursively finds all `.agent-local.md` files and generates sub-repo `CLAUDE.md`/`AGENTS.md` with overlay-only content (no duplicate core/packs). Cursor only reads workspace-root `.cursor/rules/`. If you delete a sub-repo overlay, `agent-sync` automatically cleans up the generated files.
+
+在 workspace 根目录放 `.agent-local.md`（共享规则），每个子 repo 也放一个（repo 特有规则）。`agent-sync` 会递归查找所有 `.agent-local.md`，在子目录生成只包含 overlay 内容的 `CLAUDE.md`/`AGENTS.md`（不重复 core/packs）。Cursor 只读 workspace 根目录的 `.cursor/rules/`。如果删除了某个子 repo 的 overlay，`agent-sync` 会自动清理其生成文件。

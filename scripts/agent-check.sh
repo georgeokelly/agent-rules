@@ -99,19 +99,26 @@ fi
 echo ""
 echo "[4/7] Staleness detection"
 
-if [ -d "$RULES_HOME/.git" ] && [ -f "$HASH_FILE" ]; then
-    CURRENT_HASH="$(git -C "$RULES_HOME" rev-parse HEAD 2>/dev/null || echo "unknown")"
+if [ -f "$HASH_FILE" ]; then
     STORED_HASH="$(cat "$HASH_FILE" 2>/dev/null || echo "none")"
+    STORED_RULES_HASH="${STORED_HASH%%:*}"
 
-    if [ "$CURRENT_HASH" = "$STORED_HASH" ]; then
-        pass "Generated files are up to date with rules repo"
+    if [ -d "$RULES_HOME/.git" ]; then
+        CURRENT_RULES_HASH="$(git -C "$RULES_HOME" rev-parse HEAD 2>/dev/null || echo "unknown")"
+    else
+        HASH_CMD="shasum"
+        command -v shasum &>/dev/null || HASH_CMD="sha1sum"
+        command -v $HASH_CMD &>/dev/null || HASH_CMD="md5sum"
+        CURRENT_RULES_HASH="$(find "$RULES_HOME" \( -name '*.md' -o -name '*.yaml' -o -name '*.yml' -o -name '*.css' -o -name '*.sh' \) -type f -exec $HASH_CMD {} + 2>/dev/null | $HASH_CMD | awk '{print $1}')"
+    fi
+
+    if [ "$CURRENT_RULES_HASH" = "$STORED_RULES_HASH" ]; then
+        pass "Rules repo is up to date with last sync"
     else
         warn "Rules repo has been updated since last sync. Run agent-sync."
     fi
-elif [ ! -f "$HASH_FILE" ]; then
-    warn "No sync hash found. Has agent-sync been run?"
 else
-    warn "Rules repo is not a git repository — cannot check staleness"
+    warn "No sync hash found. Has agent-sync been run?"
 fi
 
 # --- 5. File existence ---

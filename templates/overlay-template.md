@@ -1,26 +1,188 @@
-# Project Overlay Template
+# Project Overlay
 
-> Copy this file to your project root as `.agent-local.md` and fill in each section.
-> This file SHOULD be committed to the project's git repository.
->
-> For private preferences that should NOT be committed (e.g., personal API keys,
-> local paths), Claude Code users can use `CLAUDE.local.md` which is auto-gitignored.
+<!-- 
+=== 使用说明 / Usage ===
+
+1. 将此文件复制到项目根目录，重命名为 .agent-local.md
+   Copy this file to your project root as .agent-local.md
+
+2. 必填项只有 Project Overview 和 Project Structure 两个 section
+   其他 section 都有合理的默认值，不改也能正常使用
+
+3. 根据项目需要修改其他 section 的默认值，或直接删除不适用的部分
+
+4. 此文件应提交到项目的 git 仓库（它包含项目约定，团队和 AI 都需要看到）
+   This file SHOULD be committed to the project git repo
+
+5. 个人私有偏好（本地路径、API key、个人习惯等）不要放在这里
+   Claude Code 用户可以用 CLAUDE.local.md（自动加入 .gitignore）存放私有偏好
+
+6. workspace 级和子 repo 级的 overlay 使用同一个模板
+   只需根据粒度不同填写不同内容即可
+
+7. HTML 注释（如本段）在 agent-sync 编译时会被自动去除，不会出现在最终的
+   CLAUDE.md / AGENTS.md / .mdc 中，所以不占用 agent token
+-->
 
 ## Project Overview
 
-<!-- One-sentence project description + boundary statement -->
-**Project**: [Project name] — [one-line description]
-**Boundary**: [e.g., "Performance and memory efficiency take priority over code elegance"]
+<!-- 
+填写说明：
+  - Project: 一句话描述项目是什么
+  - Boundary: 一句话声明核心约束/优先级取舍
+    例如高性能库应写 "Performance and memory efficiency take priority over code elegance"
+    例如后台管理系统应写 "Maintainability and extensibility take priority over performance"
+    如果没有特别的优先级取舍，保持默认 "General-purpose" 即可
+  - Tech Stack / Build System / Target Platform: 列出主要技术栈
+    这帮助 AI 判断应该使用哪些语言特性和工具
+-->
+**Project**: [TODO: project name] — [TODO: one-line description]
+**Boundary**: General-purpose (no special priority trade-offs)
 
-**Tech Stack**: [e.g., Python 3.10+, C++17, CUDA 12.x, PyTorch/JAX]
-**Build System**: [e.g., CMake 3.24+, setuptools]
-**Target Platform**: [e.g., Linux (primary), Windows (secondary)]
+**Tech Stack**: Python 3.10+
+**Build System**: pip / setuptools
+**Target Platform**: Linux
 
 ## Project Structure
 
-<!-- MUST fill in. This is the single most important section for AI agent effectiveness. -->
+<!-- 
+填写说明：
+  - 这是对 AI agent 效果影响最大的 section，务必认真填写
+  - 没有这个信息，AI 会把文件建错位置、import 路径写错、测试放错目录
+  - 至少包含：
+    1. 完整的目录树（到关键文件级别）
+    2. 每个目录/文件的用途注释
+    3. 源码和测试文件的对应关系（见下面 Source-Test Mapping）
+  - 保持和实际项目结构同步，结构变了这里也要更新
+  - 下面的默认示例是一个最简 Python 项目结构
+-->
 
 ```
+project-root/
+├── src/                    # Source code
+├── tests/                  # Tests
+├── README.md
+└── pyproject.toml
+```
+
+### Source-Test Mapping
+
+<!-- 
+填写说明：
+  - 告诉 AI 新建测试文件应该放在哪里、命名规则是什么
+  - 格式：源文件路径 → 对应测试文件路径
+  - AI 在生成新功能的测试时会严格参考这个映射
+-->
+- `src/*.py` → `tests/test_*.py`
+
+## Build & Test Commands
+
+<!-- 
+填写说明：
+  - AI 会直接执行这里的命令来构建和测试
+  - 确保命令是可复制粘贴直接运行的（不需要额外的环境变量或前置操作）
+  - 如果有前置条件（如需要先激活 conda 环境），在这里写明
+  - 使用跨平台命令（cmake --build 而非 make）
+-->
+
+```bash
+pip install -e . -v
+pytest tests/ -v
+```
+
+## Core Architectural Invariants
+
+<!-- 
+填写说明：
+  - 这里列出不可违反的架构约束，违反 = bug
+  - 典型场景：
+    - GPU 内存管理策略（如"所有 GPU 内存必须通过 RAII wrapper 分配"）
+    - 异常传播边界（如"异常不得跨越 CUDA kernel 边界"）
+    - API 设计约束（如"所有公开 Python API 必须有 type annotation"）
+    - 线程/并发模型（如"所有 kernel 必须接受 stream 参数"）
+  - 这些约束会被 AI 视为 MUST 级别规则
+  - 不确定的约束不要写在这里，放到 Boundaries 或注释中
+  - 以下是通用默认约束，适用于大多数项目
+-->
+- All public APIs must have type annotations
+- All new features must have corresponding tests
+
+## Performance Targets
+
+<!-- 
+填写说明：
+  - 这些指标影响 AI 在生成代码时的设计决策（如 block size、shared memory 用量）
+    以及代码审查/benchmark 生成时的验收标准
+  - 没有明确数字的可以写定性描述（如 "must not regress existing benchmark"）
+  - 如果项目没有性能要求，保持默认即可
+
+  有具体指标的项目，以下是常见的 GPU 性能指标分类：
+
+  设计期可指导（AI 写代码时会据此做决策）：
+    - Kernel occupancy: > X%
+      → AI 会倾向选择更小的 shared memory/register 用量
+      → AI 会使用 cudaOccupancyMaxPotentialBlockSize
+    - Memory coalescing: contiguous thread access pattern required
+      → AI 会优先保证内存访问连续性
+    - Python binding overhead: < Xµs per call
+      → AI 会避免在 binding 层做不必要的数据拷贝
+
+  验收期可测量（AI 会生成对应的 benchmark 代码来验证）：
+    - Memory BW utilization: > X% of theoretical peak (HBM BW)
+      → 针对 memory-bound kernel（如 elementwise、reduction）
+    - CUDA Core FLOPs utilization: > X% of CUDA core theoretical peak
+      → 针对不使用 Tensor Core 的 compute-bound kernel
+    - Tensor Core FLOPs utilization: > X% of Tensor Core theoretical peak
+      → 针对使用 wmma/mma.sync 的 GEMM/convolution kernel
+      → 注意：Tensor Core 峰值远高于 CUDA Core，百分比基准完全不同
+
+  不要混用 CUDA Core 和 Tensor Core 的 FLOPs 基准。
+  如果项目同时有两类 kernel，分别列出各自的目标。
+-->
+No specific performance targets. Do not introduce obvious O(n^2) where O(n) is feasible.
+
+## Boundaries (DO NOT touch)
+
+<!-- 
+填写说明：
+  - 列出未经明确批准不得修改的文件、模块或 API
+  - 对已发布的公开 API 尤其重要 — 防止 AI 随意改动导致下游兼容性问题
+  - 格式建议：文件路径 + 原因
+  - 如果项目处于早期开发阶段没有稳定 API，保持默认即可
+  - 示例：
+    - `cpp/include/package_name/core.h` — public API, backward compatibility required
+    - `src/config/defaults.py` — shared configuration, changes affect all downstream modules
+-->
+None (early development, all files modifiable).
+
+## Project-Specific Patterns
+
+<!-- 
+填写说明：
+  - 本项目特有的宏、模式、约定。在其他项目中不适用。
+  - 典型场景：
+    - 项目自定义的错误检查宏（如 CUDA_CHECK）
+    - 特定的初始化/配置模式
+    - 编译架构目标列表
+  - 这些信息如果放到通用规则里会误导 AI 在其他项目中使用
+  - 如果没有项目特有约定，保持默认即可
+-->
+
+None.
+
+<!-- 
+=== 可选扩展（适用于 C++/CUDA 混合项目，按需取消注释并修改） ===
+
+如果你的项目涉及 C++/CUDA，以下是推荐补充的内容。
+将相关部分取消注释后移到上面对应的 section 中。
+
+--- Project Overview 追加 ---
+**Tech Stack**: Python 3.10+, C++17, CUDA 12.x, PyTorch/JAX
+**Build System**: CMake 3.24+, setuptools
+**Target Platform**: Linux (primary), Windows (secondary)
+**Boundary**: Performance and memory efficiency take priority over code elegance
+
+--- Project Structure 示例（替换默认的简单结构） ---
 project-root/
 ├── python/
 │   ├── src/package_name/       # Python source
@@ -48,60 +210,39 @@ project-root/
 │   └── examples/               # Full reference implementations
 ├── CMakeLists.txt
 └── pyproject.toml
-```
 
-### Source ↔ Test Mapping
+Source-Test Mapping:
+- python/src/package_name/core.py → python/tests/test_core.py
+- cpp/src/core.cpp → cpp/tests/test_core.cpp
 
-<!-- Describe how test files correspond to source files -->
-- `python/src/package_name/core.py` → `python/tests/test_core.py`
-- `cpp/src/core.cpp` → `cpp/tests/test_core.cpp`
-
-## Build & Test Commands
-
-```bash
-# Full build
-pip install -e . -v
-
-# C++ only
+--- Build & Test Commands 追加 ---
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j
-
-# Run all tests
-pytest python/tests/ -v
 cmake --build build --target test
-```
 
-## Core Architectural Invariants
+--- Core Architectural Invariants 追加 ---
+- All GPU memory allocation goes through CudaMemory RAII wrapper
+- Exceptions must not cross CUDA kernel boundaries
+- All CUDA API calls must use CUDA_CHECK macro
 
-<!-- Things that MUST NOT be violated. Examples: -->
-- [e.g., All GPU memory allocation goes through CudaMemory RAII wrapper]
-- [e.g., Exceptions must not cross CUDA kernel boundaries]
-- [e.g., All public Python APIs must have type annotations]
-
-## Performance Targets
-
+--- Performance Targets 替换 ---
+Design-time (guides code generation):
 - Kernel occupancy: > 50%
-- Memory bandwidth utilization: > 70% of theoretical peak
-- FLOPs utilization: > 60% for compute-bound kernels
+- Memory access pattern: coalesced (contiguous threads → contiguous addresses)
 - Python binding overhead: < 10µs per call
 
-## Boundaries (DO NOT touch)
+Acceptance-time (verified by benchmark):
+- Memory BW utilization: > 70% of HBM theoretical peak (for memory-bound kernels)
+- CUDA Core FLOPs: > 60% of CUDA core peak (for non-Tensor-Core compute-bound kernels)
+- Tensor Core FLOPs: > 40% of Tensor Core peak (for GEMM/convolution using wmma/mma.sync)
 
-<!-- Files, modules, or APIs that must not be modified without explicit approval -->
-- [e.g., `cpp/include/package_name/core.h` — public API, backward compatibility required]
-
-## Project-Specific Patterns
-
-<!-- Macros, patterns, or conventions unique to this project -->
+--- Project-Specific Patterns 追加 ---
 
 ### CUDA Architecture List
-
-The following MUST match `CMAKE_CUDA_ARCHITECTURES` in CMakeLists.txt:
-
-```cmake
+此列表必须和 CMakeLists.txt 中的 CMAKE_CUDA_ARCHITECTURES 完全一致:
 set(CMAKE_CUDA_ARCHITECTURES 80 86 89 90 100 120)
-```
 
 ### Key Macros
+- CUDA_CHECK(call) — defined in cuda/include/cuda_utils.cuh, MUST be used for all CUDA API calls
 
-- `CUDA_CHECK(call)` — defined in `cuda/include/cuda_utils.cuh`, MUST be used for all CUDA API calls
+-->
