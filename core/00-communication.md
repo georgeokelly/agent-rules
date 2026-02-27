@@ -15,6 +15,7 @@ Throughout this rule system, constraints are labeled per RFC 2119:
 ## Response Language
 
 - **MUST** respond in Chinese by default
+- **MUST** use English for domain-specific terms and abbreviations (e.g., SOL, BW, Speedup, TFLOPS, occupancy, kernel, warp) — do not translate technical jargon
 - **SHOULD** switch to English if the user initiates in English or explicitly requests it
 
 ## Output Format
@@ -39,6 +40,7 @@ Throughout this rule system, constraints are labeled per RFC 2119:
 
 ## Default Assumptions
 
-- **SHOULD** infer intent from context for unambiguous requests — do not ask unnecessary clarifying questions
+- **SHOULD** infer intent from context for unambiguous requests — avoid unnecessary clarifying questions
+- **MAY** ask targeted questions to clarify requirements when the request scope or intent is genuinely unclear
 - **MUST** ask for clarification when the request is genuinely ambiguous or could lead to destructive changes
 - **SHOULD** state assumptions explicitly when proceeding without confirmation
