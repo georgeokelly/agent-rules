@@ -74,16 +74,16 @@ echo "================================"
 echo ""
 echo "[1/7] Codex AGENTS.md size limit"
 
-if [ -f "$PROJECT_DIR/AGENTS.md" ]; then
-    SIZE=$(wc -c < "$PROJECT_DIR/AGENTS.md" | tr -d ' ')
+if [ -f "$PROJECT_DIR/.agent-rules/AGENTS.md" ]; then
+    SIZE=$(wc -c < "$PROJECT_DIR/.agent-rules/AGENTS.md" | tr -d ' ')
     if [ "$SIZE" -gt 32768 ]; then
-        fail "AGENTS.md is $SIZE bytes (> 32KiB). Codex will silently truncate!"
+        fail ".agent-rules/AGENTS.md is $SIZE bytes (> 32KiB). Codex will silently truncate!"
     else
         PERCENT=$((SIZE * 100 / 32768))
-        pass "AGENTS.md is $SIZE bytes (${PERCENT}% of 32KiB limit)"
+        pass ".agent-rules/AGENTS.md is $SIZE bytes (${PERCENT}% of 32KiB limit)"
     fi
 else
-    fail "AGENTS.md not found"
+    fail ".agent-rules/AGENTS.md not found"
 fi
 
 # --- 2. Cursor frontmatter lint ---
@@ -168,10 +168,17 @@ echo "[5/7] Generated file existence"
 
 EXPECTED_FILES=("CLAUDE.md" "AGENTS.md")
 for f in "${EXPECTED_FILES[@]}"; do
-    if [ -f "$PROJECT_DIR/$f" ]; then
-        pass "$f exists"
+    if [ -f "$PROJECT_DIR/.agent-rules/$f" ]; then
+        pass ".agent-rules/$f exists"
     else
-        fail "$f not found"
+        fail ".agent-rules/$f not found"
+    fi
+done
+
+# Warn if root-level remnants exist (Cursor would auto-inject these)
+for f in CLAUDE.md AGENTS.md; do
+    if [ -f "$PROJECT_DIR/$f" ]; then
+        warn "Root-level $f exists — Cursor will auto-inject it, duplicating .mdc rules. Run agent-sync to clean up."
     fi
 done
 
