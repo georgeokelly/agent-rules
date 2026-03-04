@@ -1,4 +1,3 @@
-todo_list/
 temp/
 
 # Ignore workspace and agent sync metadata files
@@ -11,3 +10,6 @@ temp/
 # The following files are for the template repository’s internal use; .agent-local.md in target projects should be committed to git
 .agent-local.md
 .agent-reports/
+
+issue_history/*
+!issue_history/HISTORY.md

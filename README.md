@@ -64,7 +64,8 @@ agent-rules/                     ← This repo / 本仓库 (deployed to ~/.confi
 ├── temp/                        ← Ephemeral verification artifacts / 临时验证产物
 │   └── README.md
 │
-├── todo_list/                   ← Planned changes tracker / 待办变更跟踪
+├── issue_history/               ← Issue lifecycle records / Issue 全生命周期记录
+│   ├── HISTORY.md               # Canonical issue records / Issue 历史主记录
 │   └── README.md
 │
 ├── scripts/
@@ -416,9 +417,9 @@ Place `.agent-local.md` at the workspace root (shared rules) and in each sub-rep
 
 ## 9. Roadmap
 
-Detailed design docs and review history are tracked in `todo_list/`.
+Detailed design docs and review history are tracked in `issue_history/`.
 
-详细设计文档和 review 记录在 `todo_list/` 目录中。
+详细设计文档和 review 记录在 `issue_history/` 目录中。
 
 | Priority / 优先级 | Item / 事项 | Reference / 参考 |
 |--------|------|-----------|
