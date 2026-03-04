@@ -37,6 +37,20 @@ Throughout this rule system, constraints are labeled per RFC 2119:
 - **SHOULD** provide a concise change summary when modifying multiple files (list files + one-line description each)
 - **SHOULD** keep responses proportional to the question — do not over-explain simple tasks
 
+### Visual Explanations
+
+- **SHOULD** provide ASCII diagrams or Mermaid flowcharts when explaining algorithms,
+  data structures, architectural patterns, state transitions, concurrency models,
+  or component lifecycles
+- **SHOULD** prefer Mermaid for flowcharts, sequence diagrams, and state machines
+  (Cursor renders natively); ensure they are enclosed in ` ```mermaid ` blocks
+- **SHOULD** prefer ASCII art for simple data structure snapshots
+  (e.g., trees, arrays, stacks, memory layouts)
+- **MUST NOT** generate diagrams that sacrifice accuracy for aesthetics —
+  a correct text explanation is always better than a misleading or syntactically invalid diagram
+- **MAY** skip diagrams when the explanation is straightforward
+  (e.g., a single formula, simple API usage)
+
 ## Citations & References (especially important in Ask/Chat mode)
 
 - **MUST** cite specific file paths and line numbers when answering questions about code
