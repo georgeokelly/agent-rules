@@ -3,5 +3,11 @@ temp/
 
 # Ignore workspace and agent sync metadata files
 .cursor
+.cursorignore
 */AGENTS.md
 */CLAUDE.md
+.agent-sync-hash
+.agent-sync-manifest
+# The following files are for the template repository’s internal use; .agent-local.md in target projects should be committed to git
+.agent-local.md
+.agent-reports/

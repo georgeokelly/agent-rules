@@ -116,11 +116,24 @@ chmod -R a-w ~/.config/agent-rules/{core,packs,templates}   # re-lock
 #    进入项目目录
 cd /path/to/workspace/my-project
 
-# 2. Create project-specific rules from template (this is the only file you edit)
-#    从模板创建项目特定规则（这是唯一需要编辑的文件）
+# 2. Create project-specific rules (choose one method)
+#    创建项目特定规则（二选一）
+
+# Method A: Manual — copy template and edit by hand
+# 方式 A：手动 — 复制模板后手工编辑
 cp ~/.config/agent-rules/templates/overlay-template.md .agent-local.md
 # Edit .agent-local.md — fill in project structure, build commands, etc.
 # 编辑 .agent-local.md — 填写项目结构、构建命令等
+
+# Method B: AI-guided — let the agent interview you and generate the file
+# 方式 B：AI 引导 — 让 Agent 通过对话收集信息并自动生成
+# In Cursor chat, say: "帮我创建项目配置" or "run project-overlay skill"
+# Agent will read the project-overlay skill, ask you about your project,
+# and generate .agent-local.md automatically.
+# 在 Cursor 对话中说"帮我创建项目配置"或"run project-overlay skill"，
+# Agent 会通过对话了解你的项目，然后自动生成 .agent-local.md。
+# Prerequisite: run `agent-sync .` first so the skill is deployed to .cursor/skills/
+# 前提：先运行一次 `agent-sync .` 将 skill 部署到 .cursor/skills/
 
 # 3. Sync rules (generates .cursor/rules/*.mdc, .agent-rules/CLAUDE.md, .agent-rules/AGENTS.md)
 #    同步规则（生成各工具的配置文件）
@@ -398,3 +411,18 @@ No. `agent-sync` automatically strips all `<!-- ... -->` comments during compila
 Place `.agent-local.md` at the workspace root (shared rules) and in each sub-repo (repo-specific rules). `agent-sync` recursively finds all `.agent-local.md` files and generates sub-repo `.agent-rules/` with overlay-only content (no duplicate core/packs). Cursor only reads workspace-root `.cursor/rules/`. If you delete a sub-repo overlay, `agent-sync` automatically cleans up the generated files.
 
 在 workspace 根目录放 `.agent-local.md`（共享规则），每个子 repo 也放一个（repo 特有规则）。`agent-sync` 会递归查找所有 `.agent-local.md`，在子目录生成只包含 overlay 内容的 `.agent-rules/`（不重复 core/packs）。Cursor 只读 workspace 根目录的 `.cursor/rules/`。如果删除了某个子 repo 的 overlay，`agent-sync` 会自动清理其生成文件。
+
+---
+
+## 9. Roadmap
+
+Detailed design docs and review history are tracked in `todo_list/`.
+
+详细设计文档和 review 记录在 `todo_list/` 目录中。
+
+| Priority / 优先级 | Item / 事项 | Reference / 参考 |
+|--------|------|-----------|
+| P1 | Phase A pilot — test Init Flow on a new project, validate generation quality and collect metrics / Phase A 试点 — 在新项目测试 Init Flow，验证生成质量并采集指标 | `fea-002` Roadmap |
+| P2 | Phase B pilot — test Update Flow on an existing project, validate incremental refresh and rollback / Phase B 试点 — 在已有项目测试 Update Flow，验证局部刷新和回滚 | `fea-002` Roadmap |
+| P3 | Phase C pilot — test C++/CUDA extension branch / Phase C 试点 — 测试 C++/CUDA 扩展分支 | `fea-002` Roadmap |
+| Future | Cross-session conversation persistence for overlay generation / 对话持久化与跨会话恢复 | `fea-002` Roadmap |

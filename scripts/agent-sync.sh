@@ -15,6 +15,7 @@ USAGE
     agent-sync [project-dir]              Full sync (default)
     agent-sync codex [project-dir]        Only generate AGENTS.md
     agent-sync claude [project-dir]       Only generate CLAUDE.md
+    agent-sync skills [project-dir]       Only sync skills to .cursor/skills/
     agent-sync clean [project-dir]        Remove all generated files
     agent-sync -h | --help                Show this help message
 
@@ -35,9 +36,13 @@ SUBCOMMANDS
     claude      Only generate .agent-rules/CLAUDE.md for Claude Code.
                 Always regenerates (skips staleness check).
 
+    skills      Only sync skills from $AGENT_RULES_HOME/skills/ to
+                .cursor/skills/ in the target project (root only).
+
     clean       Remove all generated files:
-                .cursor/rules/*.mdc, .agent-rules/, .agent-sync-hash,
-                .agent-sync-manifest, and sub-repo CLAUDE.md/AGENTS.md.
+                .cursor/rules/*.mdc, .cursor/skills/, .agent-rules/,
+                .agent-sync-hash, .agent-sync-manifest, and
+                sub-repo CLAUDE.md/AGENTS.md.
 
 EXAMPLES
     agent-sync                  # Full sync to current directory
@@ -54,7 +59,7 @@ EOF
 SUBCOMMAND="sync"
 case "${1:-}" in
     -h|--help) show_help ;;
-    codex|claude|clean)
+    codex|claude|skills|clean)
         SUBCOMMAND="$1"
         shift
         ;;
@@ -148,12 +153,16 @@ check_staleness() {
         stored_hash="$(cat "$HASH_FILE")"
     fi
 
-    local cursor_exists=false claude_exists=false agents_exists=false
+    local cursor_exists=false claude_exists=false agents_exists=false skills_ok=true
     [ -d "$PROJECT_DIR/.cursor/rules" ] && [ "$(ls -A "$PROJECT_DIR/.cursor/rules/" 2>/dev/null)" ] && cursor_exists=true
     [ -f "$PROJECT_DIR/.agent-rules/CLAUDE.md" ] && claude_exists=true
     [ -f "$PROJECT_DIR/.agent-rules/AGENTS.md" ] && agents_exists=true
+    # If rules repo has skills, ensure they are deployed
+    if [ -d "$RULES_HOME/skills" ] && [ "$(ls -d "$RULES_HOME/skills/"*/ 2>/dev/null)" ]; then
+        [ -f "$SKILLS_MANIFEST" ] || skills_ok=false
+    fi
 
-    if [ "$CURRENT_HASH" = "$stored_hash" ] && $cursor_exists && $claude_exists && $agents_exists; then
+    if [ "$CURRENT_HASH" = "$stored_hash" ] && $cursor_exists && $claude_exists && $agents_exists && $skills_ok; then
         echo "Rules up to date. No sync needed."
         exit 0
     fi
@@ -196,9 +205,54 @@ generate_cursor() {
         strip_html_comments < "$PROJECT_DIR/.agent-local.md" >> "$target"
     else
         rm -f "$PROJECT_DIR/.cursor/rules/project-overlay.mdc"
+        echo "  NOTE: No .agent-local.md found. Project overlay skipped."
+        echo "        Create one manually: cp \$AGENT_RULES_HOME/templates/overlay-template.md .agent-local.md"
+        echo "        Or ask your AI agent to run the \"project-overlay\" skill for guided setup."
     fi
 
     echo "  Cursor: $(ls "$PROJECT_DIR/.cursor/rules/"*.mdc 2>/dev/null | wc -l | tr -d ' ') .mdc files"
+}
+
+# Deploy skills from $RULES_HOME/skills/ to project root .cursor/skills/ (depth=0 only)
+# Uses manifest for precise cleanup; convergent sync (rm + cp) to avoid stale files.
+SKILLS_MANIFEST="$PROJECT_DIR/.cursor/skills/.agent-sync-skills-manifest"
+
+generate_skills() {
+    local skills_src="$RULES_HOME/skills"
+    [ -d "$skills_src" ] || return 0
+
+    local skill_dir skill_name target_dir
+    local count=0
+    local manifest_new="${SKILLS_MANIFEST}.new"
+    mkdir -p "$PROJECT_DIR/.cursor/skills"
+    : > "$manifest_new"
+
+    for skill_dir in "$skills_src"/*/; do
+        [ -d "$skill_dir" ] || continue
+        skill_name="$(basename "$skill_dir")"
+        target_dir="$PROJECT_DIR/.cursor/skills/$skill_name"
+        # Convergent sync: clean target then copy fresh
+        rm -rf "$target_dir"
+        mkdir -p "$target_dir"
+        cp -R "$skill_dir"* "$target_dir/"
+        echo "$skill_name" >> "$manifest_new"
+        count=$((count + 1))
+    done
+
+    # Remove skills that were previously synced but no longer exist in source
+    if [ -f "$SKILLS_MANIFEST" ]; then
+        local old_skill
+        while IFS= read -r old_skill; do
+            [ -z "$old_skill" ] && continue
+            if [ ! -d "$skills_src/$old_skill" ]; then
+                rm -rf "$PROJECT_DIR/.cursor/skills/$old_skill"
+                echo "  Removed stale skill: $old_skill"
+            fi
+        done < "$SKILLS_MANIFEST"
+    fi
+
+    mv "$manifest_new" "$SKILLS_MANIFEST"
+    echo "  Skills: $count skill(s) synced to .cursor/skills/"
 }
 
 generate_claude() {
@@ -302,9 +356,26 @@ do_clean() {
     if [ -d "$PROJECT_DIR/.cursor/rules" ]; then
         rm -f "$PROJECT_DIR/.cursor/rules/"*.mdc
         rmdir "$PROJECT_DIR/.cursor/rules" 2>/dev/null || true
-        rmdir "$PROJECT_DIR/.cursor" 2>/dev/null || true
         echo "  Removed .cursor/rules/*.mdc"
     fi
+
+    # Clean only agent-sync managed skills (manifest-based)
+    if [ -f "$SKILLS_MANIFEST" ]; then
+        local old_skill
+        while IFS= read -r old_skill; do
+            [ -z "$old_skill" ] && continue
+            rm -rf "$PROJECT_DIR/.cursor/skills/$old_skill"
+        done < "$SKILLS_MANIFEST"
+        rm -f "$SKILLS_MANIFEST"
+        rmdir "$PROJECT_DIR/.cursor/skills" 2>/dev/null || true
+        echo "  Removed agent-sync managed skills"
+    elif [ -d "$PROJECT_DIR/.cursor/skills" ]; then
+        echo "  WARNING: .cursor/skills/ exists but no manifest found."
+        echo "           Cannot determine which skills were managed by agent-sync."
+        echo "           Run 'agent-sync .' to regenerate manifest, then 'agent-sync clean' to retry."
+    fi
+
+    rmdir "$PROJECT_DIR/.cursor" 2>/dev/null || true
 
     if [ -d "$PROJECT_DIR/.agent-rules" ]; then
         rm -rf "$PROJECT_DIR/.agent-rules"
@@ -360,12 +431,19 @@ case "$SUBCOMMAND" in
         generate_claude
         echo "Done."
         ;;
+    skills)
+        validate_rules_repo
+        echo "Syncing skills to $PROJECT_DIR/.cursor/skills/ ..."
+        generate_skills
+        echo "Done."
+        ;;
     sync)
         validate_rules_repo
         check_staleness
         echo "Syncing rules from $RULES_HOME → $PROJECT_DIR"
         resolve_packs
         generate_cursor
+        generate_skills
         # generate_codex internally calls generate_claude first
         generate_codex
         cleanup_remnants

@@ -39,6 +39,14 @@
     可用的包名对应 packs/ 目录下的文件名（不含 .md 后缀）
     Cursor 的 .mdc 不受此设置影响（Cursor 通过 globs 自动按需加载）
     默认值：cpp, cuda, python, markdown, shell, git
+
+  @schema: section=Project Overview, required=true
+  @schema: field=Project, format=bold_kv, required=true
+  @schema: field=Boundary, format=bold_kv, required=true, default="General-purpose (no special priority trade-offs)"
+  @schema: field=Tech Stack, format=bold_kv, required=true
+  @schema: field=Build System, format=bold_kv, required=true, default="pip / setuptools"
+  @schema: field=Target Platform, format=bold_kv, required=true, default="Linux"
+  @schema: field=Packs, format=csv, required=true, values_from=packs/*.md, parsed_by=sed, default="cpp, cuda, python, markdown, shell, git"
 -->
 **Project**: [TODO: project name] — [TODO: one-line description]
 **Boundary**: General-purpose (no special priority trade-offs)
@@ -55,11 +63,14 @@
   - 这是对 AI agent 效果影响最大的 section，务必认真填写
   - 没有这个信息，AI 会把文件建错位置、import 路径写错、测试放错目录
   - 至少包含：
-    1. 完整的目录树（到关键文件级别）
-    2. 每个目录/文件的用途注释
+    1. 目录树（depth 2-3 即可，不需要逐文件展开，列出关键目录和入口文件）
+    2. 每个目录的用途注释
     3. 源码和测试文件的对应关系（见下面 Source-Test Mapping）
   - 保持和实际项目结构同步，结构变了这里也要更新
   - 下面的默认示例是一个最简 Python 项目结构
+
+  @schema: section=Project Structure, required=true
+  @schema: content=directory_tree, format=fenced_code_block, lang_tag=none
 -->
 
 ```
@@ -77,6 +88,9 @@ project-root/
   - 告诉 AI 新建测试文件应该放在哪里、命名规则是什么
   - 格式：源文件路径 → 对应测试文件路径
   - AI 在生成新功能的测试时会严格参考这个映射
+
+  @schema: subsection=Source-Test Mapping, required=conditional, allow_na=true
+  @schema: format=bullet_list, pattern="`src` → `test`" or "N/A"
 -->
 - `src/*.py` → `tests/test_*.py`
 
@@ -88,6 +102,9 @@ project-root/
   - 确保命令是可复制粘贴直接运行的（不需要额外的环境变量或前置操作）
   - 如果有前置条件（如需要先激活 conda 环境），在这里写明
   - 使用跨平台命令（cmake --build 而非 make）
+
+  @schema: section=Build & Test Commands, required=false
+  @schema: content=commands, format=fenced_code_block, lang_tag=bash
 -->
 
 ```bash
@@ -108,6 +125,9 @@ pytest tests/ -v
   - 这些约束会被 AI 视为 MUST 级别规则
   - 不确定的约束不要写在这里，放到 Boundaries 或注释中
   - 以下是通用默认约束，适用于大多数项目
+
+  @schema: section=Core Architectural Invariants, required=false
+  @schema: content=constraints, format=bullet_list
 -->
 - All public APIs must have type annotations
 - All new features must have corresponding tests
@@ -143,6 +163,9 @@ pytest tests/ -v
 
   不要混用 CUDA Core 和 Tensor Core 的 FLOPs 基准。
   如果项目同时有两类 kernel，分别列出各自的目标。
+
+  @schema: section=Performance Targets, required=false
+  @schema: content=targets, format=free_text
 -->
 No specific performance targets. Do not introduce obvious O(n^2) where O(n) is feasible.
 
@@ -157,6 +180,9 @@ No specific performance targets. Do not introduce obvious O(n^2) where O(n) is f
   - 示例：
     - `cpp/include/package_name/core.h` — public API, backward compatibility required
     - `src/config/defaults.py` — shared configuration, changes affect all downstream modules
+
+  @schema: section=Boundaries (DO NOT touch), required=false
+  @schema: content=boundaries, format=bullet_list_or_none
 -->
 None (early development, all files modifiable).
 
@@ -171,6 +197,9 @@ None (early development, all files modifiable).
     - 编译架构目标列表
   - 这些信息如果放到通用规则里会误导 AI 在其他项目中使用
   - 如果没有项目特有约定，保持默认即可
+
+  @schema: section=Project-Specific Patterns, required=false
+  @schema: content=patterns, format=free_text_or_none
 -->
 
 None.
