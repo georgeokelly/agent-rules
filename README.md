@@ -457,9 +457,9 @@ No. `agent-sync` automatically strips all `<!-- ... -->` comments during compila
 
 **Q: How to use with a multi-repo workspace? / 多 repo 的 workspace 怎么用？**
 
-Place `.agent-local.md` at the workspace root (shared rules) and in each sub-repo (repo-specific rules). `agent-sync` recursively finds all `.agent-local.md` files and generates sub-repo `.agent-rules/` with overlay-only content (no duplicate core/packs). Cursor only reads workspace-root `.cursor/rules/`. If you delete a sub-repo overlay, `agent-sync` automatically cleans up the generated files.
+Place `.agent-local.md` at the workspace root (shared rules) and in each sub-repo (repo-specific rules). `agent-sync` recursively finds all `.agent-local.md` files and generates sub-repo CLAUDE.md + AGENTS.md with overlay-only content (no duplicate core/packs). For Cursor, it also generates a globs-scoped `.mdc` in `.cursor/rules/` (e.g. `extras-agent-toolkit-overlay.mdc` with `globs: extras/agent-toolkit/**`), so Cursor loads the overlay only when editing files under that sub-repo — avoiding token cost for unrelated contexts. Cursor only reads workspace-root `.cursor/rules/`. If you delete a sub-repo overlay, `agent-sync` automatically cleans up the generated files (including the sub-repo .mdc).
 
-在 workspace 根目录放 `.agent-local.md`（共享规则），每个子 repo 也放一个（repo 特有规则）。`agent-sync` 会递归查找所有 `.agent-local.md`，在子目录生成只包含 overlay 内容的 `.agent-rules/`（不重复 core/packs）。Cursor 只读 workspace 根目录的 `.cursor/rules/`。如果删除了某个子 repo 的 overlay，`agent-sync` 会自动清理其生成文件。
+在 workspace 根目录放 `.agent-local.md`（共享规则），每个子 repo 也放一个（repo 特有规则）。`agent-sync` 会递归查找所有 `.agent-local.md`，在子目录生成只包含 overlay 内容的 CLAUDE.md + AGENTS.md（不重复 core/packs）。对 Cursor 还会在 `.cursor/rules/` 生成 globs 作用域的 `.mdc`（如 `extras-agent-toolkit-overlay.mdc`，`globs: extras/agent-toolkit/**`），仅在编辑该子 repo 内文件时加载，避免无关上下文的 token 消耗。Cursor 只读 workspace 根目录的 `.cursor/rules/`。如果删除了某个子 repo 的 overlay，`agent-sync` 会自动清理其生成文件（含子 repo 的 .mdc）。
 
 ---
 

@@ -449,7 +449,7 @@ sync_sub_repos() {
     : > "$manifest_new"
 
     # -maxdepth 3: matches check_staleness depth — overlays deeper than 3 levels are unsupported
-    local sub_overlay sub_dir sub_rel sub_claude
+    local sub_overlay sub_dir sub_rel sub_claude mdc_name mdc_target
     find "$PROJECT_DIR" -mindepth 2 -maxdepth 3 -name '.agent-local.md' -not -path '*/.git/*' -not -path '*/node_modules/*' | while read -r sub_overlay; do
         sub_dir="$(dirname "$sub_overlay")"
         sub_rel="${sub_dir#"$PROJECT_DIR"/}"
@@ -461,16 +461,32 @@ sync_sub_repos() {
 
         cp "$sub_claude" "$sub_dir/AGENTS.md"
 
+        # Generate a globs-scoped .mdc so Cursor loads this overlay only when editing files
+        # under the sub-repo directory — avoids paying token cost for unrelated contexts.
+        mdc_name="$(echo "$sub_rel" | tr '/' '-')-overlay.mdc"
+        mdc_target="$PROJECT_DIR/.cursor/rules/$mdc_name"
+        {
+            echo "---"
+            echo "description: ${sub_rel} project overlay"
+            echo "globs: ${sub_rel}/**"
+            echo "alwaysApply: false"
+            echo "---"
+            echo ""
+            strip_html_comments < "$sub_overlay"
+        } > "$mdc_target"
+
         echo "$sub_rel" >> "$manifest_new"
-        echo "  Sub-repo $sub_rel: CLAUDE.md + AGENTS.md (overlay only, $(wc -c < "$sub_claude" | tr -d ' ') bytes)"
+        echo "  Sub-repo $sub_rel: CLAUDE.md + AGENTS.md + ${mdc_name} (overlay only, $(wc -c < "$sub_claude" | tr -d ' ') bytes)"
     done
 
     # Clean up ghost rule files from deleted sub-repo overlays
     if [ -f "$MANIFEST" ]; then
-        local old_rel
+        local old_rel ghost_mdc
         while IFS= read -r old_rel; do
             if [ ! -f "$PROJECT_DIR/$old_rel/.agent-local.md" ]; then
                 rm -f "$PROJECT_DIR/$old_rel/CLAUDE.md" "$PROJECT_DIR/$old_rel/AGENTS.md"
+                ghost_mdc="$(echo "$old_rel" | tr '/' '-')-overlay.mdc"
+                rm -f "$PROJECT_DIR/.cursor/rules/$ghost_mdc"
                 echo "  Cleaned ghost rules: $old_rel/ (overlay removed)"
             fi
         done < "$MANIFEST"
