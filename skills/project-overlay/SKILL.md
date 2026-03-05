@@ -1,6 +1,12 @@
 ---
 name: project-overlay
 description: Create or update project-specific AI configuration (.agent-local.md) through guided conversation. Use when the user wants to create overlay, init project, setup agent rules, 创建项目配置, 初始化规则, update overlay, 更新项目配置, or when .agent-local.md is missing or outdated.
+compatibility: Designed for Cursor (agent mode). Requires access to the project filesystem and $AGENT_RULES_HOME templates directory.
+disable-model-invocation: true
+metadata:
+  author: georgel
+  version: "1.1"
+license: No
 ---
 
 # Project Overlay
@@ -16,14 +22,14 @@ description: Create or update project-specific AI configuration (.agent-local.md
 
 ### Init Flow
 
-1. 读取 [init-guide.md](init-guide.md)
+1. 读取 [init-guide.md](references/init-guide.md)
 2. 读取项目中的 `overlay-template.md`（位于 `$AGENT_RULES_HOME/templates/overlay-template.md`，其中包含 `@schema` 约束注释）
 3. 按 init-guide 的两阶段对话流程与用户交互
 4. 生成 `.agent-local.md`（含格式校验门控 + 原子写入）
 
 ### Update Flow
 
-1. 读取 [update-guide.md](update-guide.md)
+1. 读取 [update-guide.md](references/update-guide.md)
 2. 读取 `overlay-template.md`（含 `@schema`）和当前 `.agent-local.md`
 3. 按 update-guide 的流程执行局部刷新
 
@@ -44,8 +50,8 @@ description: Create or update project-specific AI configuration (.agent-local.md
 |------|------|------|
 | `overlay-template.md` | `$AGENT_RULES_HOME/templates/` | 模板 + @schema 约束（Single Source of Truth） |
 | `.agent-local.md` | 项目根目录 | 项目配置文件（用户提交到 git） |
-| `init-guide.md` | 本 skill 目录 | 初始化对话脚本 |
-| `update-guide.md` | 本 skill 目录 | 更新对话脚本 |
+| `init-guide.md` | `references/` | 初始化对话脚本 |
+| `update-guide.md` | `references/` | 更新对话脚本 |
 
 ## 语言约束
 
