@@ -3,8 +3,8 @@ temp/
 # Ignore workspace and agent sync metadata files
 .cursor
 .cursorignore
-*/AGENTS.md
-*/CLAUDE.md
+AGENTS.md
+CLAUDE.md
 # All .agent* files are generated or template-internal; target projects should commit .agent-local.md
 .agent*
 !.agent-local.md
