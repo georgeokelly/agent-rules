@@ -69,7 +69,8 @@ agent-rules/                     ← This repo / 本仓库 (deployed to ~/.confi
 │   └── README.md
 │
 ├── commands/                    ← Cursor slash-commands / Cursor 斜杠命令
-│   └── pre-commit.md            # /pre-commit — draft git commit command / 草拟 git commit 命令
+│   ├── pre-commit.md            # /pre-commit — draft git commit command / 草拟 git commit 命令
+│   └── review.md                # /review — strict third-party code review / 严格第三方代码评审
 │
 ├── scripts/
 │   ├── agent-sync.sh            # Sync rules to project / 同步规则到项目
