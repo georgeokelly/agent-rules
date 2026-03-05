@@ -1,6 +1,16 @@
 #!/bin/bash
 set -euo pipefail
 
+# Terminal colors (disabled when stdout is not a TTY, e.g., piped output)
+if [ -t 1 ]; then
+    _R='\033[0;31m' _Y='\033[0;33m' _G='\033[0;32m' _N='\033[0m'
+else
+    _R='' _Y='' _G='' _N=''
+fi
+_err()  { printf '%b%s%b\n' "$_R" "$*" "$_N"; }
+_warn() { printf '%b%s%b\n' "$_Y" "$*" "$_N"; }
+_ok()   { printf '%b%s%b\n' "$_G" "$*" "$_N"; }
+
 # agent-sync.sh — Sync rules from central repo to project directory
 # Usage: agent-sync.sh [subcommand] [project-dir]
 #
@@ -92,18 +102,20 @@ MANIFEST="$PROJECT_DIR/.agent-sync-manifest"
 validate_rules_repo() {
     echo "Checking rules repo at $RULES_HOME ..."
     if [ ! -d "$RULES_HOME" ]; then
-        echo "ERROR: Rules repo not found at $RULES_HOME"
-        echo "  Set AGENT_RULES_HOME or create the directory."
+        _err "ERROR: Rules repo not found at $RULES_HOME"
+        _err "  Set AGENT_RULES_HOME or create the directory."
         exit 1
     fi
     if [ ! -d "$RULES_HOME/core" ] || [ ! -d "$RULES_HOME/packs" ]; then
-        echo "ERROR: Rules repo missing core/ or packs/ directory."
+        _err "ERROR: Rules repo missing core/ or packs/ directory."
         exit 1
     fi
     # Initialize submodules (extras/) so their content is available; non-blocking on failure
-    git -C "$RULES_HOME" submodule update --init --recursive --quiet 2>&1 || {
-        echo "  WARNING: Submodule initialization failed. extras/ will be skipped."
-        echo "           To diagnose: git -C \"$RULES_HOME\" submodule update --init --recursive"
+    git -C "$RULES_HOME" submodule update --init --recursive --quiet >/dev/null 2>&1 || {
+        _warn "  WARNING: Submodule init failed — extras/ will be skipped."
+        _warn "           Likely cause: SSH key not configured for the submodule remote."
+        _warn "           Fix: add your SSH key to the remote host, or use HTTPS URL in .gitmodules."
+        _warn "           Debug: git -C \"$RULES_HOME\" submodule update --init --recursive"
     }
 }
 
@@ -180,7 +192,7 @@ check_staleness() {
     fi
 
     if [ "$CURRENT_HASH" = "$stored_hash" ] && $cursor_exists && $claude_exists && $agents_exists && $skills_ok && $commands_ok; then
-        echo "Rules up to date. No sync needed."
+        _ok "Rules up to date. No sync needed."
         exit 0
     fi
 }
@@ -222,9 +234,9 @@ generate_cursor() {
         strip_html_comments < "$PROJECT_DIR/.agent-local.md" >> "$target"
     else
         rm -f "$PROJECT_DIR/.cursor/rules/project-overlay.mdc"
-        echo "  NOTE: No .agent-local.md found. Project overlay skipped."
-        echo "        Create one manually: cp \$AGENT_RULES_HOME/templates/overlay-template.md .agent-local.md"
-        echo "        Or ask your AI agent to run the \"project-overlay\" skill for guided setup."
+        _warn "  NOTE: No .agent-local.md found. Project overlay skipped."
+        _warn "        Create one manually: cp \$AGENT_RULES_HOME/templates/overlay-template.md .agent-local.md"
+        _warn "        Or ask your AI agent to run the \"project-overlay\" skill for guided setup."
     fi
 
     echo "  Cursor: $(ls "$PROJECT_DIR/.cursor/rules/"*.mdc 2>/dev/null | wc -l | tr -d ' ') .mdc files"
@@ -270,8 +282,8 @@ generate_skills() {
                 skill_name="$(basename "$skill_dir")"
                 # Core always wins — skip extras duplicate
                 if [ -d "$skills_src/$skill_name" ]; then
-                    echo "  SKIP: extras/$bundle_name skill '$skill_name' — same name exists in core (core wins)"
-                    echo "        To use both, create a renamed symlink in the extras bundle."
+                    _warn "  SKIP: extras/$bundle_name skill '$skill_name' — same name exists in core (core wins)"
+                    _warn "        To use both, create a renamed symlink in the extras bundle."
                     continue
                 fi
                 target_dir="$PROJECT_DIR/.cursor/skills/$skill_name"
@@ -343,8 +355,8 @@ generate_commands() {
                 cmd_name="$(basename "$cmd_file")"
                 # Core always wins — skip extras duplicate
                 if [ -f "$commands_src/$cmd_name" ]; then
-                    echo "  SKIP: extras/$bundle_name command '$cmd_name' — same name exists in core (core wins)"
-                    echo "        To use both, create a renamed copy or symlink in the extras bundle."
+                    _warn "  SKIP: extras/$bundle_name command '$cmd_name' — same name exists in core (core wins)"
+                    _warn "        To use both, create a renamed copy or symlink in the extras bundle."
                     continue
                 fi
                 cp "$cmd_file" "$PROJECT_DIR/.cursor/commands/$cmd_name"
@@ -424,7 +436,7 @@ generate_codex() {
     agents_size=$(wc -c < "$PROJECT_DIR/.agent-rules/AGENTS.md" | tr -d ' ')
     echo "  Codex: AGENTS.md ($agents_size bytes)"
     if [ "$agents_size" -gt 32768 ]; then
-        echo "  WARNING: AGENTS.md exceeds 32KiB ($agents_size bytes). Codex may silently truncate!"
+        _warn "  WARNING: AGENTS.md exceeds 32KiB ($agents_size bytes). Codex may silently truncate!"
     fi
 }
 
@@ -492,9 +504,9 @@ do_clean() {
         rmdir "$PROJECT_DIR/.cursor/skills" 2>/dev/null || true
         echo "  Removed agent-sync managed skills"
     elif [ -d "$PROJECT_DIR/.cursor/skills" ]; then
-        echo "  WARNING: .cursor/skills/ exists but no manifest found."
-        echo "           Cannot determine which skills were managed by agent-sync."
-        echo "           Run 'agent-sync .' to regenerate manifest, then 'agent-sync clean' to retry."
+        _warn "  WARNING: .cursor/skills/ exists but no manifest found."
+        _warn "           Cannot determine which skills were managed by agent-sync."
+        _warn "           Run 'agent-sync .' to regenerate manifest, then 'agent-sync clean' to retry."
     fi
 
     # Clean only agent-sync managed commands (manifest-based)
@@ -508,9 +520,9 @@ do_clean() {
         rmdir "$PROJECT_DIR/.cursor/commands" 2>/dev/null || true
         echo "  Removed agent-sync managed commands"
     elif [ -d "$PROJECT_DIR/.cursor/commands" ]; then
-        echo "  WARNING: .cursor/commands/ exists but no manifest found."
-        echo "           Cannot determine which commands were managed by agent-sync."
-        echo "           Run 'agent-sync .' to regenerate manifest, then 'agent-sync clean' to retry."
+        _warn "  WARNING: .cursor/commands/ exists but no manifest found."
+        _warn "           Cannot determine which commands were managed by agent-sync."
+        _warn "           Run 'agent-sync .' to regenerate manifest, then 'agent-sync clean' to retry."
     fi
 
     rmdir "$PROJECT_DIR/.cursor" 2>/dev/null || true
@@ -546,7 +558,7 @@ do_clean() {
     # Root-level remnants
     rm -f "$PROJECT_DIR/CLAUDE.md" "$PROJECT_DIR/AGENTS.md" "$PROJECT_DIR/.cursorignore"
 
-    echo "Clean complete."
+    _ok "Clean complete."
 }
 
 # --- Main dispatch ---
@@ -560,26 +572,26 @@ case "$SUBCOMMAND" in
         resolve_packs
         echo "Generating AGENTS.md for Codex in $PROJECT_DIR ..."
         generate_codex
-        echo "Done."
+        _ok "Done."
         ;;
     claude)
         validate_rules_repo
         resolve_packs
         echo "Generating CLAUDE.md for Claude Code in $PROJECT_DIR ..."
         generate_claude
-        echo "Done."
+        _ok "Done."
         ;;
     skills)
         validate_rules_repo
         echo "Syncing skills to $PROJECT_DIR/.cursor/skills/ ..."
         generate_skills
-        echo "Done."
+        _ok "Done."
         ;;
     commands)
         validate_rules_repo
         echo "Syncing commands to $PROJECT_DIR/.cursor/commands/ ..."
         generate_commands
-        echo "Done."
+        _ok "Done."
         ;;
     sync)
         validate_rules_repo
@@ -594,6 +606,6 @@ case "$SUBCOMMAND" in
         cleanup_remnants
         sync_sub_repos
         store_hash
-        echo "Sync complete."
+        _ok "Sync complete."
         ;;
 esac

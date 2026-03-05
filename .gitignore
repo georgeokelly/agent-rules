@@ -5,11 +5,9 @@ temp/
 .cursorignore
 */AGENTS.md
 */CLAUDE.md
-.agent-sync-hash
-.agent-sync-manifest
-# The following files are for the template repository’s internal use; .agent-local.md in target projects should be committed to git
-.agent-local.md
-.agent-reports/
+# All .agent* files are generated or template-internal; target projects should commit .agent-local.md
+.agent*
+!.agent-local.md
 
 issue_history/*
 !issue_history/HISTORY.md
