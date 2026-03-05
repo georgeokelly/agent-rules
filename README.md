@@ -430,7 +430,5 @@ Detailed design docs and review history are tracked in `issue_history/`.
 
 | Priority / 优先级 | Item / 事项 | Reference / 参考 |
 |--------|------|-----------|
-| P1 | Phase A pilot — test Init Flow on a new project, validate generation quality and collect metrics / Phase A 试点 — 在新项目测试 Init Flow，验证生成质量并采集指标 | `fea-002` Roadmap |
-| P2 | Phase B pilot — test Update Flow on an existing project, validate incremental refresh and rollback / Phase B 试点 — 在已有项目测试 Update Flow，验证局部刷新和回滚 | `fea-002` Roadmap |
 | P3 | Phase C pilot — test C++/CUDA extension branch / Phase C 试点 — 测试 C++/CUDA 扩展分支 | `fea-002` Roadmap |
 | Future | Cross-session conversation persistence for overlay generation / 对话持久化与跨会话恢复 | `fea-002` Roadmap |

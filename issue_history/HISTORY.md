@@ -49,6 +49,7 @@ Copy the block below when creating a new entry.
 |----|-------------|--------------|------------|
 | HIST-002 | Project Overlay 优化方案 | In Progress | 2026-03-04 |
 | HIST-001 | Agent Rules 隔离方案 | Closed | 2026-03-04 |
+| HIST-000 | Visual Explanations 规则 | Closed | 2026-03-01 |
 
 ---
 
@@ -98,8 +99,8 @@ Copy the block below when creating a new entry.
 
 #### TODOs / 遗留项
 
-- [ ] Phase A 试点——在 1 个新项目上测试 Init Flow，采集 `overlay-metrics.log`
-- [ ] Phase B 试点——在 1 个已有项目上测试 Update Flow
+- [x] Phase A 试点——在 1 个新项目上测试 Init Flow，采集 `overlay-metrics.log`
+- [x] Phase B 试点——在 1 个已有项目上测试 Update Flow
 - [ ] Phase C 试点——在 1 个 C++/CUDA 项目上测试扩展分支
 - [ ] 将 skills 复制改为 `cp -R "$skill_dir/." "$target_dir/"` 以覆盖隐藏文件
 - [ ] 为 manifest 丢失场景增加 fallback 清理策略
@@ -143,6 +144,45 @@ Shell wrapper `_agent_with_rules()` 向上查找 `.agent-rules/`（不依赖 git
 
 - Codex/Claude Code 不再开箱即用，依赖 wrapper（临时方案）
 - 不依赖 git 的目录查找可能在极端嵌套结构下效率低
+
+#### TODOs / 遗留项
+
+None.
+
+---
+
+### HIST-000: Visual Explanations 规则
+
+- **Status / 状态**: Closed
+- **Date / 日期**: 2026-03-01
+- **Related commits / 关联提交**: (not recorded)
+
+#### Background / 背景
+
+对于算法、原理类 query，Agent 仅输出纯文字说明，缺乏可视化手段，信息传递效率低。用户提出希望 Agent 在适合时优先提供 ASCII 图或流程图辅助说明。
+
+#### Design / 设计方案
+
+采纳，按 SHOULD 级别实现。在 `.cursor/rules/00-communication.mdc` 的 `Output Format → General` 之后新增 `### Visual Explanations` 子节，包含 5 条规则：
+
+- `SHOULD` 在解释算法、数据结构、架构模式、状态转换、并发模型、组件生命周期时提供 ASCII 或 Mermaid 图
+- `SHOULD` 流程图/时序图/状态机优先用 Mermaid（Cursor 原生渲染），须使用 ` ```mermaid ` 代码块
+- `SHOULD` 简单数据结构快照（树、数组、栈、内存布局）优先用 ASCII art
+- `MUST NOT` 为追求形式而牺牲准确性——有歧义的图不如正确的文字
+- `MAY` 说明简单时跳过图表（如单一公式、简单 API 用法）
+
+经 Gemini、Kimi、GPT-Codex 三方 review 后，融合了以下建议：扩充场景（concurrency/lifecycle）、强调 ` ```mermaid ` 语法标记、补充 Acceptance Criteria、将触发条件具体化。
+
+#### Implementation / 实现方案
+
+| 文件 | 变更 |
+|------|------|
+| `.cursor/rules/00-communication.mdc` | 在 Output Format 下新增 `### Visual Explanations` 子节（5 条规则） |
+
+#### Limitations / 局限性
+
+- 触发条件为 SHOULD 弹性，不同模型/回合仍可能出现"该画不画"或"过度画图"的解释差异
+- 未覆盖"Mermaid 渲染失败时自动回退 ASCII"的显式规则
 
 #### TODOs / 遗留项
 
