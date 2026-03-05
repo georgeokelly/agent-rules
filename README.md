@@ -15,7 +15,7 @@ This rule system replaces a single monolithic AGENTS file with a **3-layer archi
 | Layer / 层级 | Content / 内容 | Loading / 加载方式 | Budget / 规模 |
 |---|---|---|---|
 | **Core** (core/) | Workflow, communication, quality gates / 工作流、沟通规范、质量门槛 | Always loaded / 始终加载 | ~250 lines |
-| **Language Packs** (packs/) | Python, C++, CUDA, PyBind11, Shell, Swift, Markdown, Git | By file type / 按文件类型 | ~150 lines each |
+| **Language Packs** (packs/) | Python, C++, CUDA, Rust, PyBind11, Shell, Swift, Markdown, Git | By file type / 按文件类型 | ~150 lines each |
 | **Project Overlay** (.agent-local.md) | Project structure, build cmds, boundaries / 项目结构、构建命令、边界 | Per project / 按项目 | ~100-200 lines |
 
 **Why this structure? / 为什么这样设计？**
@@ -40,6 +40,7 @@ agent-rules/                     ← This repo / 本仓库 (deployed to ~/.confi
 │   ├── python.md                # Python 3.10+ rules / Python 规范
 │   ├── cpp.md                   # C++17 rules / C++ 规范
 │   ├── cuda.md                  # CUDA kernel rules / CUDA 规范
+│   ├── rust.md                  # Rust 2021 rules / Rust 规范
 │   ├── pybind11.md              # PyBind11 bindings / PyBind11 绑定规范
 │   ├── shell.md                 # Bash/Zsh scripting / Shell 脚本规范
 │   ├── swift.md                 # Swift 5.9+ rules / Swift 规范
