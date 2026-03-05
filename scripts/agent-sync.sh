@@ -100,6 +100,11 @@ validate_rules_repo() {
         echo "ERROR: Rules repo missing core/ or packs/ directory."
         exit 1
     fi
+    # Initialize submodules (extras/) so their content is available; non-blocking on failure
+    git -C "$RULES_HOME" submodule update --init --recursive --quiet 2>&1 || {
+        echo "  WARNING: Submodule initialization failed. extras/ will be skipped."
+        echo "           To diagnose: git -C \"$RULES_HOME\" submodule update --init --recursive"
+    }
 }
 
 # --- Pack resolution ---
@@ -142,7 +147,10 @@ check_staleness() {
 
     local rules_hash=""
     if [ -d "$RULES_HOME/.git" ]; then
-        rules_hash="$(git -C "$RULES_HOME" rev-parse HEAD 2>/dev/null || echo "no-git")"
+        local sub_hash
+        # Include each submodule's pinned commit so extras/ updates trigger re-sync
+        sub_hash="$(git -C "$RULES_HOME" submodule status 2>/dev/null | awk '{print $1}' | tr -d '+-U' | sort | tr -d '\n')"
+        rules_hash="$(git -C "$RULES_HOME" rev-parse HEAD 2>/dev/null || echo "no-git"):${sub_hash:-no-submodules}"
     else
         rules_hash="$(find "$RULES_HOME" \( -name '*.md' -o -name '*.yaml' -o -name '*.yml' -o -name '*.sh' \) -type f -exec $hash_cmd {} + 2>/dev/null | $hash_cmd | awk '{print $1}')"
     fi
@@ -243,17 +251,54 @@ generate_skills() {
         # Convergent sync: clean target then copy fresh
         rm -rf "$target_dir"
         mkdir -p "$target_dir"
-        cp -R "$skill_dir"* "$target_dir/"
+        # Guard: skip copy if skill dir is empty (glob won't expand under set -e)
+        if [ -n "$(ls -A "$skill_dir" 2>/dev/null)" ]; then
+            cp -R "$skill_dir"* "$target_dir/"
+        fi
         echo "$skill_name" >> "$manifest_new"
         count=$((count + 1))
     done
 
-    # Remove skills that were previously synced but no longer exist in source
+    # Deploy skills from extras/ — core takes priority; skip extras duplicates
+    if [ -d "$RULES_HOME/extras" ]; then
+        local extras_dir bundle_name
+        for extras_dir in "$RULES_HOME/extras"/*/; do
+            [ -d "$extras_dir/skills" ] || continue
+            bundle_name="$(basename "$extras_dir")"
+            for skill_dir in "$extras_dir/skills"/*/; do
+                [ -d "$skill_dir" ] || continue
+                skill_name="$(basename "$skill_dir")"
+                # Core always wins — skip extras duplicate
+                if [ -d "$skills_src/$skill_name" ]; then
+                    echo "  SKIP: extras/$bundle_name skill '$skill_name' — same name exists in core (core wins)"
+                    echo "        To use both, create a renamed symlink in the extras bundle."
+                    continue
+                fi
+                target_dir="$PROJECT_DIR/.cursor/skills/$skill_name"
+                rm -rf "$target_dir"
+                mkdir -p "$target_dir"
+                if [ -n "$(ls -A "$skill_dir" 2>/dev/null)" ]; then
+                    cp -R "$skill_dir"* "$target_dir/"
+                fi
+                echo "$skill_name" >> "$manifest_new"
+                count=$((count + 1))
+            done
+        done
+    fi
+
+    # Remove skills that were previously synced but no longer exist in any source (core or extras)
     if [ -f "$SKILLS_MANIFEST" ]; then
-        local old_skill
+        local old_skill found extras_dir
         while IFS= read -r old_skill; do
             [ -z "$old_skill" ] && continue
-            if [ ! -d "$skills_src/$old_skill" ]; then
+            found=false
+            [ -d "$skills_src/$old_skill" ] && found=true
+            if ! $found && [ -d "$RULES_HOME/extras" ]; then
+                for extras_dir in "$RULES_HOME/extras"/*/; do
+                    [ -d "${extras_dir}skills/$old_skill" ] && found=true && break
+                done
+            fi
+            if ! $found; then
                 rm -rf "$PROJECT_DIR/.cursor/skills/$old_skill"
                 echo "  Removed stale skill: $old_skill"
             fi
@@ -287,12 +332,41 @@ generate_commands() {
         count=$((count + 1))
     done
 
-    # Remove commands that were previously synced but no longer exist in source
+    # Deploy commands from extras/ — core takes priority; skip extras duplicates
+    if [ -d "$RULES_HOME/extras" ]; then
+        local extras_dir bundle_name
+        for extras_dir in "$RULES_HOME/extras"/*/; do
+            [ -d "$extras_dir/commands" ] || continue
+            bundle_name="$(basename "$extras_dir")"
+            for cmd_file in "$extras_dir/commands"/*.md; do
+                [ -f "$cmd_file" ] || continue
+                cmd_name="$(basename "$cmd_file")"
+                # Core always wins — skip extras duplicate
+                if [ -f "$commands_src/$cmd_name" ]; then
+                    echo "  SKIP: extras/$bundle_name command '$cmd_name' — same name exists in core (core wins)"
+                    echo "        To use both, create a renamed copy or symlink in the extras bundle."
+                    continue
+                fi
+                cp "$cmd_file" "$PROJECT_DIR/.cursor/commands/$cmd_name"
+                echo "$cmd_name" >> "$manifest_new"
+                count=$((count + 1))
+            done
+        done
+    fi
+
+    # Remove commands that were previously synced but no longer exist in any source (core or extras)
     if [ -f "$COMMANDS_MANIFEST" ]; then
-        local old_cmd
+        local old_cmd found extras_dir
         while IFS= read -r old_cmd; do
             [ -z "$old_cmd" ] && continue
-            if [ ! -f "$commands_src/$old_cmd" ]; then
+            found=false
+            [ -f "$commands_src/$old_cmd" ] && found=true
+            if ! $found && [ -d "$RULES_HOME/extras" ]; then
+                for extras_dir in "$RULES_HOME/extras"/*/; do
+                    [ -f "${extras_dir}commands/$old_cmd" ] && found=true && break
+                done
+            fi
+            if ! $found; then
                 rm -f "$PROJECT_DIR/.cursor/commands/$old_cmd"
                 echo "  Removed stale command: $old_cmd"
             fi

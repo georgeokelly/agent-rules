@@ -1,0 +1,3 @@
+[submodule "extras/agent-toolkit"]
+	path = extras/agent-toolkit
+	url = git@github.com:georgeokelly/agent-toolkit.git

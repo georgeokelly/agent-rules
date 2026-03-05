@@ -72,6 +72,9 @@ agent-rules/                     ← This repo / 本仓库 (deployed to ~/.confi
 │   ├── pre-commit.md            # /pre-commit — draft git commit command / 草拟 git commit 命令
 │   └── review.md                # /review — strict third-party code review / 严格第三方代码评审
 │
+├── extras/                      ← Domain-specific submodule bundles / 领域扩展 submodule 挂载点
+│   └── agent-toolkit/           # git submodule — optional skills & commands / 可选技能与命令扩展
+│
 ├── scripts/
 │   ├── agent-sync.sh            # Sync rules to project / 同步规则到项目
 │   ├── agent-check.sh           # Validate generated files / 验证生成文件
@@ -374,6 +377,42 @@ After modifying rules, test with these fixed tasks across all 3 tools:
 3. Run `agent-sync .` in each active project / 在每个活跃项目中运行同步
 4. Run `agent-check .` to validate / 运行检查脚本验证
 5. (Optional) Run a regression test task to verify behavior / （可选）运行回归测试任务验证行为
+
+### Managing extras/ submodules / 管理扩展 submodule
+
+`extras/` contains optional, domain-specific skill/command bundles mounted as git submodules.
+`agent-sync` automatically initializes and deploys them — no extra steps needed after initial setup.
+If submodule initialization fails (e.g., network issues, missing SSH keys), a warning is printed and extras are skipped.
+
+`extras/` 下存放按需挂载的领域专用扩展，以 git submodule 形式管理。`agent-sync` 会自动初始化并部署。若子模块初始化失败（如网络问题、SSH 密钥缺失），会输出警告并跳过 extras。
+
+**Priority / 优先级**: Core skills and commands (`skills/`, `commands/`) always take priority over extras. If an extras bundle contains a skill or command with the same name as a core one, the extras version is skipped and a warning is printed. To use both, create a renamed symlink in the extras bundle.
+
+**优先级**：核心 skills 和 commands（`skills/`、`commands/`）始终优先于 extras。若 extras 中存在与核心同名的 skill 或 command，extras 版本会被跳过并输出提示。如需同时使用，在 extras bundle 中创建重命名的软链接。
+
+```bash
+# Add a new bundle / 添加新扩展包
+git submodule add git@github.com:georgeokelly/agent-toolkit.git extras/agent-toolkit
+git commit -m "Add agent-toolkit as domain-specific skill/command bundle"
+
+# Upgrade a bundle to latest / 升级某个扩展包
+git -C extras/agent-toolkit pull origin main
+git add extras/agent-toolkit
+git commit -m "Update agent-toolkit submodule to latest"
+
+# Remove a bundle / 移除某个扩展包
+git submodule deinit extras/agent-toolkit
+git rm extras/agent-toolkit
+git commit -m "Remove agent-toolkit submodule"
+```
+
+On a new machine, clone with submodules / 新机器克隆时带上 submodule：
+
+```bash
+git clone --recurse-submodules https://github.com/georgeokelly/agent-rules.git ~/.config/agent-rules
+# or, if already cloned / 或已克隆后初始化：
+git submodule update --init --recursive
+```
 
 ---
 
