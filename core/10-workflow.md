@@ -76,6 +76,8 @@ Different AI tools have different autonomy levels. The same core rules apply, bu
 - **MAY** execute code, run tests, and commit changes autonomously
 - **MUST** clearly state what actions were taken and their results
 - **SHOULD** run tests after making changes to verify correctness
+- **SHOULD** respect hierarchical `AGENTS.md` scoping — deeper files override higher-level instructions for their subtree
+- **MUST NOT** modify `.codex/config.toml` without explicit user confirmation
 - Workflow: goal-oriented — state the acceptance criteria, then execute
 
 ### Claude Code (CLI, guided autonomy)

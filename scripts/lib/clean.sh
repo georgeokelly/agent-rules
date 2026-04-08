@@ -1,0 +1,144 @@
+# lib/clean.sh — Full cleanup of all generated files
+# Sourced by agent-sync.sh. Do not execute directly.
+
+do_clean() {
+    echo "Cleaning generated files in $PROJECT_DIR ..."
+
+    if [ -d "$PROJECT_DIR/.cursor/rules" ]; then
+        rm -f "$PROJECT_DIR/.cursor/rules/"*.mdc
+        rmdir "$PROJECT_DIR/.cursor/rules" 2>/dev/null || true
+        echo "  Removed .cursor/rules/*.mdc"
+    fi
+
+    if [ -f "$SKILLS_MANIFEST" ]; then
+        clean_manifest "$SKILLS_MANIFEST" "$PROJECT_DIR/.cursor/skills" "dirs"
+        rmdir "$PROJECT_DIR/.cursor/skills" 2>/dev/null || true
+        echo "  Removed agent-sync managed skills"
+    elif [ -d "$PROJECT_DIR/.cursor/skills" ]; then
+        _warn "  WARNING: .cursor/skills/ exists but no manifest found."
+    fi
+
+    if [ -f "$COMMANDS_MANIFEST" ]; then
+        clean_manifest "$COMMANDS_MANIFEST" "$PROJECT_DIR/.cursor/commands" "files"
+        rmdir "$PROJECT_DIR/.cursor/commands" 2>/dev/null || true
+        echo "  Removed agent-sync managed commands"
+    elif [ -d "$PROJECT_DIR/.cursor/commands" ]; then
+        _warn "  WARNING: .cursor/commands/ exists but no manifest found."
+    fi
+
+    if [ -f "$REVIEWER_VARIANTS_MANIFEST" ]; then
+        local rv_entry rv_file
+        while IFS= read -r rv_entry; do
+            [ -z "$rv_entry" ] && continue
+            rv_file="$(echo "$rv_entry" | cut -d'|' -f1)"
+            rm -f "$PROJECT_DIR/.cursor/agents/$rv_file"
+        done < "$REVIEWER_VARIANTS_MANIFEST"
+        rm -f "$REVIEWER_VARIANTS_MANIFEST"
+        echo "  Removed generated reviewer variants"
+    fi
+
+    if [ -f "$CURSOR_AGENTS_MANIFEST" ]; then
+        clean_manifest "$CURSOR_AGENTS_MANIFEST" "$PROJECT_DIR/.cursor/agents" "files"
+        rmdir "$PROJECT_DIR/.cursor/agents" 2>/dev/null || true
+        echo "  Removed agent-sync managed agents"
+    elif [ -d "$PROJECT_DIR/.cursor/agents" ]; then
+        _warn "  WARNING: .cursor/agents/ exists but no manifest found."
+    fi
+
+    if [ -f "$REVIEWER_CONF_STAMP" ]; then
+        rm -f "$REVIEWER_CONF_TARGET" "$REVIEWER_CONF_STAMP"
+        echo "  Removed .cursor/reviewer-models.conf (agent-sync managed)"
+    elif [ -f "$REVIEWER_CONF_TARGET" ]; then
+        _warn "  SKIP: .cursor/reviewer-models.conf is not managed by agent-sync — left intact."
+    fi
+
+    if [ -f "$PROJECT_DIR/.cursor/.worktrees-agent-sync" ]; then
+        rm -f "$PROJECT_DIR/.cursor/worktrees.json" "$PROJECT_DIR/.cursor/.worktrees-agent-sync"
+        echo "  Removed .cursor/worktrees.json (agent-sync managed)"
+    elif [ -f "$PROJECT_DIR/.cursor/worktrees.json" ]; then
+        _warn "  SKIP: .cursor/worktrees.json is not managed by agent-sync — left intact."
+    fi
+
+    rmdir "$PROJECT_DIR/.cursor" 2>/dev/null || true
+
+    # CC native files
+    if [ -f "$CC_RULES_MANIFEST" ]; then
+        clean_manifest "$CC_RULES_MANIFEST" "$PROJECT_DIR/.claude/rules" "files"
+        rmdir "$PROJECT_DIR/.claude/rules" 2>/dev/null || true
+        echo "  Removed agent-sync managed CC rules"
+    elif [ -d "$PROJECT_DIR/.claude/rules" ]; then
+        _warn "  WARNING: .claude/rules/ exists but no manifest found."
+    fi
+
+    if [ -f "$CC_SKILLS_MANIFEST" ]; then
+        clean_manifest "$CC_SKILLS_MANIFEST" "$PROJECT_DIR/.claude/skills" "dirs"
+        rmdir "$PROJECT_DIR/.claude/skills" 2>/dev/null || true
+        echo "  Removed agent-sync managed CC skills"
+    elif [ -d "$PROJECT_DIR/.claude/skills" ]; then
+        _warn "  WARNING: .claude/skills/ exists but no manifest found."
+    fi
+
+    if [ -f "$CC_COMMANDS_MANIFEST" ]; then
+        clean_manifest "$CC_COMMANDS_MANIFEST" "$PROJECT_DIR/.claude/commands" "files"
+        rmdir "$PROJECT_DIR/.claude/commands" 2>/dev/null || true
+        echo "  Removed agent-sync managed CC commands"
+    elif [ -d "$PROJECT_DIR/.claude/commands" ]; then
+        _warn "  WARNING: .claude/commands/ exists but no manifest found."
+    fi
+
+    rmdir "$PROJECT_DIR/.claude" 2>/dev/null || true
+
+    # Codex native files
+    if [ -f "$CODEX_CONFIG_STAMP" ]; then
+        rm -f "$PROJECT_DIR/.codex/config.toml" "$CODEX_CONFIG_STAMP"
+        echo "  Removed .codex/config.toml (agent-sync managed)"
+    elif [ -f "$PROJECT_DIR/.codex/config.toml" ]; then
+        _warn "  SKIP: .codex/config.toml is not managed by agent-sync — left intact."
+    fi
+
+    if [ -f "$CODEX_SKILLS_MANIFEST" ]; then
+        clean_manifest "$CODEX_SKILLS_MANIFEST" "$PROJECT_DIR/.agents/skills" "dirs"
+        rmdir "$PROJECT_DIR/.agents/skills" 2>/dev/null || true
+        rmdir "$PROJECT_DIR/.agents" 2>/dev/null || true
+        echo "  Removed agent-sync managed Codex skills"
+    elif [ -d "$PROJECT_DIR/.agents/skills" ]; then
+        _warn "  WARNING: .agents/skills/ exists but no manifest found."
+    fi
+
+    rmdir "$PROJECT_DIR/.codex" 2>/dev/null || true
+
+    if [ -d "$PROJECT_DIR/.agent-rules" ]; then
+        rm -rf "$PROJECT_DIR/.agent-rules"
+        echo "  Removed .agent-rules/"
+    fi
+
+    rm -f "$HASH_FILE"
+    echo "  Removed .agent-sync-hash"
+
+    # Sub-repo cleanup
+    if [ -f "$MANIFEST" ]; then
+        local old_rel ghost_mdc ghost_cc
+        while IFS= read -r old_rel; do
+            rm -f "$PROJECT_DIR/$old_rel/CLAUDE.md" "$PROJECT_DIR/$old_rel/AGENTS.md"
+            ghost_mdc="$(echo "$old_rel" | tr '/' '-')-overlay.mdc"
+            rm -f "$PROJECT_DIR/.cursor/rules/$ghost_mdc"
+            ghost_cc="$(echo "$old_rel" | tr '/' '-')-overlay.md"
+            rm -f "$PROJECT_DIR/.claude/rules/$ghost_cc"
+            echo "  Removed sub-repo rules: $old_rel/"
+        done < "$MANIFEST"
+    fi
+    rm -f "$MANIFEST"
+    echo "  Removed .agent-sync-manifest"
+
+    # Fallback: scan for orphaned auto-generated files
+    find "$PROJECT_DIR" -mindepth 2 -maxdepth 4 \( -name 'CLAUDE.md' -o -name 'AGENTS.md' \) -not -path '*/.git/*' -not -path '*/.agent-rules/*' -not -path '*/node_modules/*' -type f | while read -r stale_file; do
+        if head -1 "$stale_file" 2>/dev/null | grep -q '<!-- Auto-generated by agent-sync'; then
+            rm -f "$stale_file"
+            echo "  Removed orphan: ${stale_file#"$PROJECT_DIR"/}"
+        fi
+    done
+
+    rm -f "$PROJECT_DIR/CLAUDE.md" "$PROJECT_DIR/AGENTS.md"
+
+    _ok "Clean complete."
+}

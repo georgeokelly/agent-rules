@@ -19,6 +19,9 @@ set -euo pipefail
 #  12. CC skills deployment validation (when CC Mode != off)
 #  13. CC commands deployment validation (when CC Mode != off)
 #  14. CC/Cursor consistency (rules count, skills set match)
+#  15. Codex .codex/config.toml validation (when Codex Mode = native)
+#  16. Codex skills deployment validation (when Codex Mode = native)
+#  17. Codex/CC/Cursor skills consistency (when Codex Mode = native)
 
 show_help() {
     cat <<'EOF'
@@ -51,6 +54,9 @@ CHECKS PERFORMED
    12. CC skills deployment validation (when CC Mode != off)
    13. CC commands deployment validation (when CC Mode != off)
    14. CC/Cursor consistency (when CC Mode != off)
+   15. Codex .codex/config.toml validation (when Codex Mode = native)
+   16. Codex skills deployment validation (when Codex Mode = native)
+   17. Codex/CC/Cursor skills consistency (when Codex Mode = native)
 
 EXAMPLES
     agent-check                  # Check rules in current directory
@@ -92,9 +98,21 @@ if [ -f "$PROJECT_DIR/.agent-local.md" ]; then
     esac
 fi
 
+# --- Detect Codex Mode ---
+CODEX_MODE="native"
+if [ -f "$PROJECT_DIR/.agent-local.md" ]; then
+    _codex_mode="$(sed -n 's/^\*\*Codex Mode\*\*:[[:space:]]*//p' "$PROJECT_DIR/.agent-local.md" | head -1 | sed 's/<!--.*-->//' | xargs)"
+    case "$_codex_mode" in
+        off|legacy|native) CODEX_MODE="$_codex_mode" ;;
+    esac
+fi
+
 TOTAL_CHECKS=10
 if [ "$CC_MODE" != "off" ]; then
     TOTAL_CHECKS=14
+fi
+if [ "$CODEX_MODE" = "native" ]; then
+    TOTAL_CHECKS=$((TOTAL_CHECKS + 3))
 fi
 
 # --- 1. Codex AGENTS.md size ---
@@ -206,16 +224,35 @@ fi
 echo ""
 echo "[5/$TOTAL_CHECKS] Generated file existence"
 
-# CLAUDE.md is required; AGENTS.md is advisory (Codex is not the primary tool)
-if [ -f "$PROJECT_DIR/.agent-rules/CLAUDE.md" ]; then
-    pass ".agent-rules/CLAUDE.md exists"
-else
-    fail ".agent-rules/CLAUDE.md not found"
+# CLAUDE.md / AGENTS.md requirements depend on CC_MODE / CODEX_MODE
+local_claude_required=true
+local_agents_required=true
+# Legacy CLAUDE.md not required when CC is native + Codex is off
+if [ "$CC_MODE" = "native" ] && [ "$CODEX_MODE" = "off" ]; then
+    local_claude_required=false
 fi
-if [ -f "$PROJECT_DIR/.agent-rules/AGENTS.md" ]; then
-    pass ".agent-rules/AGENTS.md exists"
+# AGENTS.md not required when Codex is off
+if [ "$CODEX_MODE" = "off" ]; then
+    local_agents_required=false
+fi
+
+if $local_claude_required; then
+    if [ -f "$PROJECT_DIR/.agent-rules/CLAUDE.md" ]; then
+        pass ".agent-rules/CLAUDE.md exists"
+    else
+        fail ".agent-rules/CLAUDE.md not found"
+    fi
 else
-    warn ".agent-rules/AGENTS.md not found (Codex not in use)"
+    pass ".agent-rules/CLAUDE.md not required (CC Mode: $CC_MODE, Codex Mode: $CODEX_MODE)"
+fi
+if $local_agents_required; then
+    if [ -f "$PROJECT_DIR/.agent-rules/AGENTS.md" ]; then
+        pass ".agent-rules/AGENTS.md exists"
+    else
+        warn ".agent-rules/AGENTS.md not found"
+    fi
+else
+    pass ".agent-rules/AGENTS.md not required (Codex Mode: $CODEX_MODE)"
 fi
 
 # Warn if root-level remnants exist (Cursor would auto-inject these)
@@ -544,6 +581,116 @@ if [ -f "$CC_SKILLS_MF" ] && [ -f "$CURSOR_SKILLS_MF" ]; then
 fi
 
 fi  # end CC_MODE != off
+
+# --- 15-17. Codex native checks (only when Codex Mode = native) ---
+
+if [ "$CODEX_MODE" = "native" ]; then
+
+# --- 15. Codex config.toml validation ---
+
+echo ""
+echo "[$(($TOTAL_CHECKS - 2))/$TOTAL_CHECKS] Codex .codex/config.toml validation"
+
+if [ -f "$PROJECT_DIR/.codex/config.toml" ]; then
+    # Validate TOML syntax
+    if command -v python3 &>/dev/null; then
+        if python3 -c "
+import sys
+try:
+    import tomllib
+except ImportError:
+    import tomli as tomllib
+with open('$PROJECT_DIR/.codex/config.toml', 'rb') as f:
+    tomllib.load(f)
+" 2>/dev/null; then
+            pass ".codex/config.toml is valid TOML"
+        else
+            # Fallback: basic syntax check via grep
+            if grep -q 'project_doc_fallback_filenames' "$PROJECT_DIR/.codex/config.toml"; then
+                pass ".codex/config.toml exists (TOML validation unavailable — tomllib/tomli not installed)"
+            else
+                fail ".codex/config.toml may be invalid TOML"
+            fi
+        fi
+    else
+        pass ".codex/config.toml exists (python3 not available for TOML validation)"
+    fi
+
+    # Check that fallback filenames include .agent-rules/AGENTS.md
+    if grep -q '\.agent-rules/AGENTS\.md' "$PROJECT_DIR/.codex/config.toml"; then
+        pass ".codex/config.toml references .agent-rules/AGENTS.md in fallback filenames"
+    else
+        warn ".codex/config.toml does not reference .agent-rules/AGENTS.md — Codex may not find instructions"
+    fi
+else
+    fail ".codex/config.toml not found (Codex Mode: native)"
+fi
+
+# --- 16. Codex skills validation ---
+
+echo ""
+echo "[$(($TOTAL_CHECKS - 1))/$TOTAL_CHECKS] Codex skills deployment validation"
+
+CODEX_SKILLS_MF="$PROJECT_DIR/.agents/skills/.agent-sync-codex-skills-manifest"
+CODEX_HAS_SOURCE_SKILLS=false
+if [ -d "$RULES_HOME/skills" ] && [ "$(ls -d "$RULES_HOME/skills/"*/ 2>/dev/null)" ]; then
+    CODEX_HAS_SOURCE_SKILLS=true
+fi
+
+if $CODEX_HAS_SOURCE_SKILLS; then
+    if [ -f "$CODEX_SKILLS_MF" ]; then
+        CODEX_SKILLS_OK=true
+        CODEX_SKILLS_CHECKED=0
+        while IFS= read -r codex_skill_name; do
+            [ -z "$codex_skill_name" ] && continue
+            CODEX_SKILLS_CHECKED=$((CODEX_SKILLS_CHECKED + 1))
+            codex_skill_dir="$PROJECT_DIR/.agents/skills/$codex_skill_name"
+            if [ -d "$codex_skill_dir" ] && [ "$(ls -A "$codex_skill_dir" 2>/dev/null)" ]; then
+                pass "Codex skill '$codex_skill_name' deployed"
+            else
+                fail "Codex skill '$codex_skill_name' listed in manifest but missing or empty"
+                CODEX_SKILLS_OK=false
+            fi
+        done < "$CODEX_SKILLS_MF"
+        if [ "$CODEX_SKILLS_CHECKED" -eq 0 ]; then
+            fail "Codex skills manifest exists but is empty. Run agent-sync."
+        elif $CODEX_SKILLS_OK; then
+            pass "All $CODEX_SKILLS_CHECKED Codex skills are deployed"
+        fi
+    else
+        fail "Rules repo has skills but Codex skills manifest not found. Run agent-sync."
+    fi
+else
+    pass "No skills in rules repo (Codex skills: nothing to validate)"
+fi
+
+# --- 17. Codex/CC/Cursor skills consistency ---
+
+echo ""
+echo "[$TOTAL_CHECKS/$TOTAL_CHECKS] Codex/CC/Cursor skills consistency"
+
+CURSOR_SKILLS_MF_17="$PROJECT_DIR/.cursor/skills/.agent-sync-skills-manifest"
+CC_SKILLS_MF_17="$PROJECT_DIR/.claude/skills/.agent-sync-skills-manifest"
+if [ -f "$CODEX_SKILLS_MF" ] && [ -f "$CURSOR_SKILLS_MF_17" ]; then
+    CURSOR_SKILL_SET_17=$(sort "$CURSOR_SKILLS_MF_17" | tr '\n' ',')
+    CODEX_SKILL_SET_17=$(sort "$CODEX_SKILLS_MF" | tr '\n' ',')
+    if [ "$CURSOR_SKILL_SET_17" = "$CODEX_SKILL_SET_17" ]; then
+        pass "Codex and Cursor skill sets match"
+    else
+        warn "Codex and Cursor skill sets differ — check agent-sync output"
+    fi
+fi
+if [ -f "$CODEX_SKILLS_MF" ] && [ -f "$CC_SKILLS_MF_17" ]; then
+    CC_SKILL_SET_17=$(sort "$CC_SKILLS_MF_17" | tr '\n' ',')
+    CODEX_SKILL_SET_C17=$(sort "$CODEX_SKILLS_MF" | tr '\n' ',')
+    if [ "$CC_SKILL_SET_17" = "$CODEX_SKILL_SET_C17" ]; then
+        pass "Codex and CC skill sets match"
+    else
+        warn "Codex and CC skill sets differ — check agent-sync output"
+    fi
+fi
+
+fi  # end CODEX_MODE = native
 
 # --- Summary ---
 

@@ -44,6 +44,12 @@
     off    — 不生成 .claude/ 下的文件（仅 Cursor + legacy CLAUDE.md）
     dual   — 同时生成 .claude/ 原生文件和 legacy CLAUDE.md（默认）
     native — 仅生成 .claude/ 原生文件，跳过 legacy CLAUDE.md/AGENTS.md
+  - Codex Mode: 控制 OpenAI Codex 原生输出的生成模式
+    off    — 不生成任何 Codex 输出（不生成 AGENTS.md 也不生成 .codex/）
+    legacy — 仅生成 .agent-rules/AGENTS.md（需要 shell wrapper 创建根目录 symlink）
+    native — 生成 .codex/config.toml + .agents/skills/ + .agent-rules/AGENTS.md（默认）
+             Codex 通过 config.toml 的 project_doc_fallback_filenames 自动发现 AGENTS.md
+             无需 wrapper；同时支持层级 AGENTS.md（child_agents_md feature）
 
   @schema: section=Project Overview, required=true
   @schema: field=Project, format=bold_kv, required=true
@@ -53,6 +59,7 @@
   @schema: field=Target Platform, format=bold_kv, required=true, default="Linux"
   @schema: field=Packs, format=csv, required=true, values_from=packs/*.md, parsed_by=sed, default="cpp, cuda, python, markdown, shell, git"
   @schema: field=CC Mode, format=bold_kv, required=false, default="dual", values="off,dual,native"
+  @schema: field=Codex Mode, format=bold_kv, required=false, default="native", values="off,legacy,native"
 -->
 **Project**: [TODO: project name] — [TODO: one-line description]
 **Boundary**: General-purpose (no special priority trade-offs)
@@ -62,6 +69,7 @@
 **Target Platform**: Linux
 **Packs**: cpp, cuda, python, markdown, shell, git
 **CC Mode**: dual
+**Codex Mode**: native
 
 ## Project Structure
 

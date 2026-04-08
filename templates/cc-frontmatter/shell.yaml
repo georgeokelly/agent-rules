@@ -1,4 +1,1 @@
-paths:
-  - "**/*.sh"
-  - "**/*.bash"
-  - "**/*.zsh"
+globs: "**/*.sh,**/*.bash,**/*.zsh"
