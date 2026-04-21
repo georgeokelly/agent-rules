@@ -93,7 +93,7 @@ agent-rules/                     ← This repo / 本仓库 (deployed to ~/.confi
 │   └── review.md                # /review — strict third-party code review / 严格第三方代码评审
 │
 ├── extras/                      ← Domain-specific submodule bundles / 领域扩展 submodule 挂载点
-│   └── agent-toolkit/           # git submodule — optional skills & commands / 可选技能与命令扩展
+│   └── agent-extension/         # git submodule — optional skills & commands / 可选技能与命令扩展
 │
 ├── agents/
 │   └── reviewer.md              # Base reviewer sub-agent (inherits parent model) / 基础评审 Agent（继承父模型）
@@ -479,18 +479,18 @@ If submodule initialization fails (e.g., network issues, missing SSH keys), a wa
 
 ```bash
 # Add a new bundle / 添加新扩展包
-git submodule add git@github.com:georgeokelly/agent-toolkit.git extras/agent-toolkit
-git commit -m "Add agent-toolkit as domain-specific skill/command bundle"
+git submodule add git@github.com:georgeokelly/agent-extension.git extras/agent-extension
+git commit -m "Add agent-extension as domain-specific skill/command bundle"
 
 # Upgrade a bundle to latest / 升级某个扩展包
-git -C extras/agent-toolkit pull origin main
-git add extras/agent-toolkit
-git commit -m "Update agent-toolkit submodule to latest"
+git -C extras/agent-extension pull origin main
+git add extras/agent-extension
+git commit -m "Update agent-extension submodule to latest"
 
 # Remove a bundle / 移除某个扩展包
-git submodule deinit extras/agent-toolkit
-git rm extras/agent-toolkit
-git commit -m "Remove agent-toolkit submodule"
+git submodule deinit extras/agent-extension
+git rm extras/agent-extension
+git commit -m "Remove agent-extension submodule"
 ```
 
 On a new machine, clone with submodules / 新机器克隆时带上 submodule：
@@ -543,9 +543,9 @@ No. `agent-sync` automatically strips all `<!-- ... -->` comments during compila
 
 **Q: How to use with a multi-repo workspace? / 多 repo 的 workspace 怎么用？**
 
-Place `.agent-local.md` at the workspace root (shared rules) and in each sub-repo (repo-specific rules). `agent-sync` recursively finds all `.agent-local.md` files and generates sub-repo CLAUDE.md + AGENTS.md with overlay-only content (no duplicate core/packs). For Cursor, it also generates a globs-scoped `.mdc` in `.cursor/rules/` (e.g. `extras-agent-toolkit-overlay.mdc` with `globs: extras/agent-toolkit/**`), so Cursor loads the overlay only when editing files under that sub-repo — avoiding token cost for unrelated contexts. Cursor only reads workspace-root `.cursor/rules/`. If you delete a sub-repo overlay, `agent-sync` automatically cleans up the generated files (including the sub-repo .mdc).
+Place `.agent-local.md` at the workspace root (shared rules) and in each sub-repo (repo-specific rules). `agent-sync` recursively finds all `.agent-local.md` files and generates sub-repo CLAUDE.md + AGENTS.md with overlay-only content (no duplicate core/packs). For Cursor, it also generates a globs-scoped `.mdc` in `.cursor/rules/` (e.g. `extras-agent-extension-overlay.mdc` with `globs: extras/agent-extension/**`), so Cursor loads the overlay only when editing files under that sub-repo — avoiding token cost for unrelated contexts. Cursor only reads workspace-root `.cursor/rules/`. If you delete a sub-repo overlay, `agent-sync` automatically cleans up the generated files (including the sub-repo .mdc).
 
-在 workspace 根目录放 `.agent-local.md`（共享规则），每个子 repo 也放一个（repo 特有规则）。`agent-sync` 会递归查找所有 `.agent-local.md`，在子目录生成只包含 overlay 内容的 CLAUDE.md + AGENTS.md（不重复 core/packs）。对 Cursor 还会在 `.cursor/rules/` 生成 globs 作用域的 `.mdc`（如 `extras-agent-toolkit-overlay.mdc`，`globs: extras/agent-toolkit/**`），仅在编辑该子 repo 内文件时加载，避免无关上下文的 token 消耗。Cursor 只读 workspace 根目录的 `.cursor/rules/`。如果删除了某个子 repo 的 overlay，`agent-sync` 会自动清理其生成文件（含子 repo 的 .mdc）。
+在 workspace 根目录放 `.agent-local.md`（共享规则），每个子 repo 也放一个（repo 特有规则）。`agent-sync` 会递归查找所有 `.agent-local.md`，在子目录生成只包含 overlay 内容的 CLAUDE.md + AGENTS.md（不重复 core/packs）。对 Cursor 还会在 `.cursor/rules/` 生成 globs 作用域的 `.mdc`（如 `extras-agent-extension-overlay.mdc`，`globs: extras/agent-extension/**`），仅在编辑该子 repo 内文件时加载，避免无关上下文的 token 消耗。Cursor 只读 workspace 根目录的 `.cursor/rules/`。如果删除了某个子 repo 的 overlay，`agent-sync` 会自动清理其生成文件（含子 repo 的 .mdc）。
 
 ---
 
