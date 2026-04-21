@@ -70,6 +70,10 @@ agent-rules/                     ← This repo / 本仓库 (deployed to ~/.confi
 │   ├── HISTORY.md               # Canonical issue records / Issue 历史主记录
 │   └── README.md
 │
+├── skills/                      ← Agent skills / Agent 技能（部署到 .cursor/skills/）
+│   ├── project-overlay/         # Guided .agent-local.md creation / 引导式项目配置生成
+│   └── agent-memory/            # Cross-session context dump/resume / 跨 session 上下文保存与恢复
+│
 ├── commands/                    ← Cursor slash-commands / Cursor 斜杠命令
 │   ├── pre-commit.md            # /pre-commit — draft git commit command / 草拟 git commit 命令
 │   └── review.md                # /review — strict third-party code review / 严格第三方代码评审

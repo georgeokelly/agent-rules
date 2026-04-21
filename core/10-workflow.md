@@ -68,6 +68,7 @@ Different AI tools have different autonomy levels. The same core rules apply, bu
 
 - **MUST NOT** commit code changes independently
 - **MUST NOT** start development servers
+- **SHOULD NOT** use Shell `mkdir` solely to create directories before writing files — the Write tool creates parent directories automatically. Prefer Write over `mkdir` + Shell to avoid unnecessary permission prompts.
 - Workflow: strict 3-stage with explicit user confirmation at each transition
 
 ### OpenAI Codex (CLI, autonomous agent)
