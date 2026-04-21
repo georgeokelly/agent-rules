@@ -18,7 +18,7 @@ USAGE
     agent-test [-h|--help]
 
 ENVIRONMENT
-    AGENT_RULES_HOME   Override rules repo path (default: auto-detected)
+    AGENT_TOOLKIT_HOME   Override rules repo path (default: auto-detected)
 
 Tests run in temporary directories and clean up on exit.
 EOF
@@ -30,7 +30,7 @@ esac
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RULES_HOME="$(cd "$SCRIPT_DIR/.." && pwd)"
-export AGENT_RULES_HOME="$RULES_HOME"
+export AGENT_TOOLKIT_HOME="$RULES_HOME"
 
 AGENT_SYNC="$SCRIPT_DIR/agent-sync.sh"
 AGENT_CHECK="$SCRIPT_DIR/agent-check.sh"

@@ -35,7 +35,7 @@ generate_cursor() {
     else
         rm -f "$PROJECT_DIR/.cursor/rules/project-overlay.mdc"
         _warn "  NOTE: No .agent-local.md found. Project overlay skipped."
-        _warn "        Create one manually: cp \$AGENT_RULES_HOME/templates/overlay-template.md .agent-local.md"
+        _warn "        Create one manually: cp \$AGENT_TOOLKIT_HOME/templates/overlay-template.md .agent-local.md"
         _warn "        Or ask your AI agent to run the \"project-overlay\" skill for guided setup."
     fi
 
@@ -87,7 +87,7 @@ generate_reviewer_variants() {
     local conf_file="$PROJECT_DIR/.cursor/reviewer-models.conf"
     [ -f "$conf_file" ] || [ -f "$REVIEWER_VARIANTS_MANIFEST" ] || return 0
 
-    AGENT_RULES_HOME="$RULES_HOME" "$gen_script" "$PROJECT_DIR"
+    AGENT_TOOLKIT_HOME="$RULES_HOME" "$gen_script" "$PROJECT_DIR"
 }
 
 # --- Worktrees deployment ---

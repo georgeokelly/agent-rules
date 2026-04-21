@@ -49,7 +49,7 @@ Before dispatching, verify that the requested reviewer sub-agents exist in `.cur
 
 - If variants are present → proceed to Phase 1.
 - If variants are missing but `.cursor/reviewer-models.conf` exists → run `generate-reviewers` to create them from the config, then proceed.
-- If neither variants nor config exist → fall back to the separate-session approach (see below) and inform the user to create `.cursor/reviewer-models.conf` (copy from `$AGENT_RULES_HOME/templates/reviewer-models.conf`) and run `agent-sync`.
+- If neither variants nor config exist → fall back to the separate-session approach (see below) and inform the user to create `.cursor/reviewer-models.conf` (copy from `$AGENT_TOOLKIT_HOME/templates/reviewer-models.conf`) and run `agent-sync`.
 
 ### Phase 1 — Dispatch
 

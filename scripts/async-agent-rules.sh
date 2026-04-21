@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-## [ABOUT] Update local agent-rules repo with safe unlock/relock flow.
+## [ABOUT] Update local agent-toolkit repo with safe unlock/relock flow.
 ## [USAGE] bash async_agent_rules.sh
 
-readonly RULES_DIR="${HOME}/.config/agent-rules"
+readonly RULES_DIR="${HOME}/.config/agent-toolkit"
 readonly LOCK_TARGETS=("core" "packs" "templates")
 
 show_help() {
   cat <<'EOF'
 bash async_agent_rules.sh
 
-Update local agent-rules repository:
+Update local agent-toolkit repository:
 1) unlock writable permissions for managed rule folders
 2) pull latest commits with fast-forward only
 3) always re-lock folders on exit (success or failure)

@@ -5,7 +5,7 @@ validate_rules_repo() {
     echo "Checking rules repo at $RULES_HOME ..."
     if [ ! -d "$RULES_HOME" ]; then
         _err "ERROR: Rules repo not found at $RULES_HOME"
-        _err "  Set AGENT_RULES_HOME or create the directory."
+        _err "  Set AGENT_TOOLKIT_HOME or create the directory."
         exit 1
     fi
     if [ ! -d "$RULES_HOME/core" ] || [ ! -d "$RULES_HOME/packs" ]; then

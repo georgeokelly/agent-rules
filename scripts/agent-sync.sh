@@ -5,7 +5,7 @@ set -euo pipefail
 # Usage: agent-sync.sh [subcommand] [project-dir]
 #
 # Environment:
-#   AGENT_RULES_HOME  — path to central rules repo (default: ~/.config/agent-rules)
+#   AGENT_TOOLKIT_HOME  — path to central rules repo (default: ~/.config/agent-toolkit)
 
 show_help() {
     cat <<'EOF'
@@ -26,7 +26,7 @@ ARGUMENTS
     project-dir    Target project directory (default: current directory)
 
 ENVIRONMENT
-    AGENT_RULES_HOME   Path to central rules repo (default: ~/.config/agent-rules)
+    AGENT_TOOLKIT_HOME   Path to central rules repo (default: ~/.config/agent-toolkit)
 
 SUBCOMMANDS
     (default)   Full sync: generates Cursor .mdc files, CLAUDE.md, AGENTS.md,
@@ -68,7 +68,7 @@ esac
 
 # --- Global configuration ---
 
-RULES_HOME="${AGENT_RULES_HOME:-$HOME/.config/agent-rules}"
+RULES_HOME="${AGENT_TOOLKIT_HOME:-$HOME/.config/agent-toolkit}"
 
 PROJECT_DIR="${1:-.}"
 PROJECT_DIR="$(cd "$PROJECT_DIR" && pwd)"

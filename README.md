@@ -30,7 +30,7 @@ This rule system replaces a single monolithic AGENTS file with a **3-layer archi
 ## 2. Directory Structure / 目录结构
 
 ```
-agent-rules/                     ← This repo / 本仓库 (deployed to ~/.config/agent-rules/)
+agent-toolkit/                   ← This repo / 本仓库 (deployed to ~/.config/agent-toolkit/)
 ├── core/                        ← Always loaded / 始终加载
 │   ├── 00-communication.md      # Output format, language, citations / 输出格式、语言、引用规范
 │   ├── 10-workflow.md           # 3-stage workflow + fast track / 三阶段工作流 + 快速通道
@@ -122,26 +122,48 @@ The rule system is deployed as a single git clone per machine. All source files 
 ```bash
 # 1. Clone the rules repo (one-time, per machine)
 #    克隆规则仓库（每台机器一次）
-git clone https://github.com/georgeokelly/agent-rules.git ~/.config/agent-rules
+git clone https://github.com/georgeokelly/agent-toolkit.git ~/.config/agent-toolkit
 
 # 2. Make source files read-only (prevent accidental edits)
 #    将源文件设为只读（防止意外修改）
-chmod -R a-w ~/.config/agent-rules/{core,packs,templates}
+chmod -R a-w ~/.config/agent-toolkit/{core,packs,templates}
 
 # 3. Add shell aliases
 #    添加 shell 别名
-echo 'alias agent-sync="~/.config/agent-rules/scripts/agent-sync.sh"' >> ~/.zshrc
-echo 'alias agent-check="~/.config/agent-rules/scripts/agent-check.sh"' >> ~/.zshrc
+echo 'alias agent-sync="~/.config/agent-toolkit/scripts/agent-sync.sh"' >> ~/.zshrc
+echo 'alias agent-check="~/.config/agent-toolkit/scripts/agent-check.sh"' >> ~/.zshrc
 source ~/.zshrc
 ```
 
 To update rules on this machine / 在本机更新规则:
 
 ```bash
-chmod -R u+w ~/.config/agent-rules/{core,packs,templates}  # temporarily unlock
-cd ~/.config/agent-rules && git pull
-chmod -R a-w ~/.config/agent-rules/{core,packs,templates}   # re-lock
+chmod -R u+w ~/.config/agent-toolkit/{core,packs,templates}  # temporarily unlock
+cd ~/.config/agent-toolkit && git pull
+chmod -R a-w ~/.config/agent-toolkit/{core,packs,templates}   # re-lock
 ```
+
+### Environment Variables / 环境变量
+
+Scripts resolve the central repo path via `AGENT_TOOLKIT_HOME`. If unset, they fall back to `~/.config/agent-toolkit`.
+
+脚本通过 `AGENT_TOOLKIT_HOME` 解析中央仓库路径。未设置时回退到 `~/.config/agent-toolkit`。
+
+| Variable / 变量 | Default / 默认值 | Purpose / 用途 |
+|---|---|---|
+| `AGENT_TOOLKIT_HOME` | `~/.config/agent-toolkit` | Path to the central rules repo used by `agent-sync`, `agent-check`, and reviewer sub-agents / 中央规则仓库路径,被 `agent-sync`、`agent-check` 及 reviewer 子代理读取 |
+
+Override example / 自定义路径示例:
+
+```bash
+# If you cloned the repo to a non-default location
+# 若克隆到非默认路径
+export AGENT_TOOLKIT_HOME="$HOME/code/agent-toolkit"
+```
+
+**Migration from `AGENT_RULES_HOME` / 从旧变量迁移**: this repo was renamed from `agent-rules` to `agent-toolkit`; the environment variable changed accordingly. If your shell rc still exports `AGENT_RULES_HOME`, replace it with `AGENT_TOOLKIT_HOME` — the old name is no longer read.
+
+本仓库由 `agent-rules` 重命名为 `agent-toolkit`,环境变量随之更改。若 shell rc 仍 export `AGENT_RULES_HOME`,请替换为 `AGENT_TOOLKIT_HOME`——旧变量名不再被识别。
 
 ### Per-Project Setup / 项目设置
 
@@ -155,7 +177,7 @@ cd /path/to/workspace/my-project
 
 # Method A: Manual — copy template and edit by hand
 # 方式 A：手动 — 复制模板后手工编辑
-cp ~/.config/agent-rules/templates/overlay-template.md .agent-local.md
+cp ~/.config/agent-toolkit/templates/overlay-template.md .agent-local.md
 # Edit .agent-local.md — fill in project structure, build commands, etc.
 # 编辑 .agent-local.md — 填写项目结构、构建命令等
 
@@ -448,7 +470,7 @@ After modifying rules, test with these fixed tasks across all 3 tools:
 
 | Trigger / 触发条件 | Action / 操作 |
 |---|---|
-| Modified any file in `~/.config/agent-rules/` / 修改了规则仓库中的任何文件 | `agent-sync .` in each project / 在每个项目中运行 |
+| Modified any file in `~/.config/agent-toolkit/` / 修改了规则仓库中的任何文件 | `agent-sync .` in each project / 在每个项目中运行 |
 | Modified `.agent-local.md` (root or sub-repo) / 修改了项目 overlay | `agent-sync .` (auto-detected / 自动检测) |
 | First time setting up a project / 首次设置项目 | `agent-sync .` |
 | Deleted a sub-repo `.agent-local.md` / 删除了子目录 overlay | `agent-sync .` (auto-cleans ghost rules / 自动清理残留规则) |
@@ -459,7 +481,7 @@ After modifying rules, test with these fixed tasks across all 3 tools:
 
 ### How to update rules / 如何更新规则
 
-1. Edit the source file in `~/.config/agent-rules/` (e.g., `packs/python.md`) / 编辑规则仓库中的源文件
+1. Edit the source file in `~/.config/agent-toolkit/` (e.g., `packs/python.md`) / 编辑规则仓库中的源文件
 2. (If git) Commit the change / 提交变更
 3. Run `agent-sync .` in each active project / 在每个活跃项目中运行同步
 4. Run `agent-check .` to validate / 运行检查脚本验证
@@ -496,7 +518,7 @@ git commit -m "Remove agent-extension submodule"
 On a new machine, clone with submodules / 新机器克隆时带上 submodule：
 
 ```bash
-git clone --recurse-submodules https://github.com/georgeokelly/agent-rules.git ~/.config/agent-rules
+git clone --recurse-submodules https://github.com/georgeokelly/agent-toolkit.git ~/.config/agent-toolkit
 # or, if already cloned / 或已克隆后初始化：
 git submodule update --init --recursive
 ```

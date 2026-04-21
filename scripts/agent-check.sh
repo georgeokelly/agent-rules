@@ -37,7 +37,7 @@ OPTIONS
     -h, --help     Show this help message and exit
 
 ENVIRONMENT
-    AGENT_RULES_HOME   Path to central rules repo (default: ~/.config/agent-rules)
+    AGENT_TOOLKIT_HOME   Path to central rules repo (default: ~/.config/agent-toolkit)
 
 CHECKS PERFORMED
     1. Codex AGENTS.md size (must be < 32KiB)
@@ -73,7 +73,7 @@ case "${1:-}" in
     -h|--help) show_help ;;
 esac
 
-RULES_HOME="${AGENT_RULES_HOME:-$HOME/.config/agent-rules}"
+RULES_HOME="${AGENT_TOOLKIT_HOME:-$HOME/.config/agent-toolkit}"
 PROJECT_DIR="${1:-.}"
 PROJECT_DIR="$(cd "$PROJECT_DIR" && pwd)"
 
