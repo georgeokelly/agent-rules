@@ -5,11 +5,17 @@ description: >-
   Use when the user asks to save context, dump memory, resume a previous session,
   保存上下文, 继续上次任务, or when a paused session is detected that matches
   the current task. Commands: /agent-memory dump, /agent-memory resume, /agent-memory knowledge.
+when_to_use: >-
+  Use when the user explicitly asks to save / dump / checkpoint the current
+  working context, resume a previous session, or distill a knowledge note —
+  OR when the context window is approaching its limit and a summarization
+  is about to happen (auto-dump). Also use passively when a paused session
+  hint in .cursor/rules/agent-memory-hint.mdc is clearly related to the
+  user's current task. Do NOT use just to take notes during a live task.
 compatibility: Cross-tool (Cursor, Claude Code, Codex). Requires filesystem access.
 metadata:
   author: georgel
-  version: "1.1"
-license: No
+  version: "1.2"
 ---
 
 # Agent Memory

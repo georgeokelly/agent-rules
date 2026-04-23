@@ -18,46 +18,19 @@ do_clean() {
         _warn "  WARNING: .cursor/skills/ exists but no manifest found."
     fi
 
-    if [ -f "$COMMANDS_MANIFEST" ]; then
-        clean_manifest "$COMMANDS_MANIFEST" "$PROJECT_DIR/.cursor/commands" "files"
-        rmdir "$PROJECT_DIR/.cursor/commands" 2>/dev/null || true
-        echo "  Removed agent-sync managed commands"
-    elif [ -d "$PROJECT_DIR/.cursor/commands" ]; then
-        _warn "  WARNING: .cursor/commands/ exists but no manifest found."
-    fi
-
-    if [ -f "$REVIEWER_VARIANTS_MANIFEST" ]; then
-        local rv_entry rv_file
-        while IFS= read -r rv_entry; do
-            [ -z "$rv_entry" ] && continue
-            rv_file="$(echo "$rv_entry" | cut -d'|' -f1)"
-            rm -f "$PROJECT_DIR/.cursor/agents/$rv_file"
-        done < "$REVIEWER_VARIANTS_MANIFEST"
-        rm -f "$REVIEWER_VARIANTS_MANIFEST"
-        echo "  Removed generated reviewer variants"
-    fi
-
-    if [ -f "$CURSOR_AGENTS_MANIFEST" ]; then
-        clean_manifest "$CURSOR_AGENTS_MANIFEST" "$PROJECT_DIR/.cursor/agents" "files"
-        rmdir "$PROJECT_DIR/.cursor/agents" 2>/dev/null || true
-        echo "  Removed agent-sync managed agents"
-    elif [ -d "$PROJECT_DIR/.cursor/agents" ]; then
-        _warn "  WARNING: .cursor/agents/ exists but no manifest found."
-    fi
-
-    if [ -f "$REVIEWER_CONF_STAMP" ]; then
-        rm -f "$REVIEWER_CONF_TARGET" "$REVIEWER_CONF_STAMP"
-        echo "  Removed .cursor/reviewer-models.conf (agent-sync managed)"
-    elif [ -f "$REVIEWER_CONF_TARGET" ]; then
-        _warn "  SKIP: .cursor/reviewer-models.conf is not managed by agent-sync — left intact."
-    fi
-
     if [ -f "$PROJECT_DIR/.cursor/.worktrees-agent-sync" ]; then
         rm -f "$PROJECT_DIR/.cursor/worktrees.json" "$PROJECT_DIR/.cursor/.worktrees-agent-sync"
         echo "  Removed .cursor/worktrees.json (agent-sync managed)"
     elif [ -f "$PROJECT_DIR/.cursor/worktrees.json" ]; then
         _warn "  SKIP: .cursor/worktrees.json is not managed by agent-sync — left intact."
     fi
+
+    # HIST-003 GLM-m3: pre-refactor agent-sync generated .cursor/reviewer-models.conf
+    # and stamped it with .cursor/.reviewer-models-agent-sync. The .conf file is now
+    # user-managed (see README §9 migration), but the stamp is a pure agent-sync
+    # artifact with no user-facing value — leaving it behind creates an orphan that
+    # misleads future deployments into thinking .conf is still agent-sync-owned.
+    rm -f "$PROJECT_DIR/.cursor/.reviewer-models-agent-sync" 2>/dev/null || true
 
     rmdir "$PROJECT_DIR/.cursor" 2>/dev/null || true
 
@@ -78,13 +51,9 @@ do_clean() {
         _warn "  WARNING: .claude/skills/ exists but no manifest found."
     fi
 
-    if [ -f "$CC_COMMANDS_MANIFEST" ]; then
-        clean_manifest "$CC_COMMANDS_MANIFEST" "$PROJECT_DIR/.claude/commands" "files"
-        rmdir "$PROJECT_DIR/.claude/commands" 2>/dev/null || true
-        echo "  Removed agent-sync managed CC commands"
-    elif [ -d "$PROJECT_DIR/.claude/commands" ]; then
-        _warn "  WARNING: .claude/commands/ exists but no manifest found."
-    fi
+    # HIST-003: remove stamp-gated legacy .claude/commands/ so rmdir .claude
+    # below does not silently fail on pre-refactor deployments.
+    cleanup_legacy_cc_commands
 
     rmdir "$PROJECT_DIR/.claude" 2>/dev/null || true
 

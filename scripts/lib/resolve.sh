@@ -47,19 +47,60 @@ pack_is_active() {
 
 # --- CC Mode resolution ---
 
-CC_MODE="dual"
+# HIST-004: CC Mode was simplified from {off, dual, native} to {off, native}.
+# Default flipped from 'dual' to 'native' because Claude Code v2.0.64+ reads
+# .claude/rules/*.md natively, making the legacy .agent-rules/CLAUDE.md a dead
+# artifact. 'dual' is kept as a deprecated alias that fallbacks to 'native'
+# with a warning so existing .agent-local.md files don't hard-fail.
+CC_MODE="native"
 
 resolve_cc_mode() {
     if [ -f "$PROJECT_DIR/.agent-local.md" ]; then
         local mode
         mode="$(sed -n 's/^\*\*CC Mode\*\*:[[:space:]]*//p' "$PROJECT_DIR/.agent-local.md" | head -1 | sed 's/<!--.*-->//' | xargs)"
         case "$mode" in
-            off|dual|native) CC_MODE="$mode" ;;
-            "") CC_MODE="dual" ;;
-            *) _warn "  WARNING: Unknown CC Mode '$mode'. Defaulting to 'dual'."; CC_MODE="dual" ;;
+            off|native) CC_MODE="$mode" ;;
+            dual)
+                _warn "  DEPRECATED: CC Mode 'dual' was removed in HIST-004. Using 'native'."
+                _warn "              Remove '**CC Mode**: dual' from .agent-local.md to silence."
+                CC_MODE="native"
+                ;;
+            "") CC_MODE="native" ;;
+            *) _warn "  WARNING: Unknown CC Mode '$mode'. Defaulting to 'native'."; CC_MODE="native" ;;
         esac
     fi
     echo "  CC Mode: $CC_MODE"
+}
+
+# --- Skill Prefix resolution ---
+# HIST-005: prefix applied to every deployed skill — both the target directory
+# name and the SKILL.md frontmatter `name:` field — so agent-toolkit-produced
+# skills are namespaced from unrelated skill sources (agentskills.io catalog,
+# user-authored skills, other rule packs). Default prefix is 'gla-'. Overlay
+# key '**Skill Prefix**:' in .agent-local.md overrides it:
+#   - empty or omitted   → default 'gla-'
+#   - 'none'/'off'/'-'   → explicit opt-out (bare names deployed)
+#   - 'myproj'           → auto-appended dash → 'myproj-'
+#   - 'myproj-'          → used as-is
+SKILL_PREFIX="gla-"
+
+resolve_skill_prefix() {
+    if [ -f "$PROJECT_DIR/.agent-local.md" ]; then
+        local prefix
+        prefix="$(sed -n 's/^\*\*Skill Prefix\*\*:[[:space:]]*//p' "$PROJECT_DIR/.agent-local.md" | head -1 | sed 's/<!--.*-->//' | xargs)"
+        case "$prefix" in
+            "")             SKILL_PREFIX="gla-" ;;
+            none|off|-)     SKILL_PREFIX="" ;;
+            *-)             SKILL_PREFIX="$prefix" ;;
+            *)              SKILL_PREFIX="${prefix}-" ;;
+        esac
+    fi
+    if [ -n "$SKILL_PREFIX" ]; then
+        echo "  Skill Prefix: '$SKILL_PREFIX'"
+    else
+        echo "  Skill Prefix: <none> (opt-out)"
+    fi
+    export SKILL_PREFIX
 }
 
 # --- Codex Mode resolution ---
@@ -102,26 +143,26 @@ check_staleness() {
     local overlay_hash
     overlay_hash="$(find "$PROJECT_DIR" -maxdepth 3 -name '.agent-local.md' -not -path '*/.git/*' -not -path '*/node_modules/*' -type f -exec "$hash_cmd" {} + 2>/dev/null | sort | "$hash_cmd" | awk '{print $1}')"
 
-    local reviewer_conf_hash=""
-    if [ -f "$PROJECT_DIR/.cursor/reviewer-models.conf" ]; then
-        reviewer_conf_hash="$("$hash_cmd" "$PROJECT_DIR/.cursor/reviewer-models.conf" 2>/dev/null | awk '{print $1}')"
-    fi
-    CURRENT_HASH="${rules_hash}:${overlay_hash}:${reviewer_conf_hash}"
+    CURRENT_HASH="${rules_hash}:${overlay_hash}"
 
     local stored_hash=""
     [ -f "$HASH_FILE" ] && stored_hash="$(cat "$HASH_FILE")"
 
-    local cursor_exists=false claude_exists=false agents_exists=false
-    local skills_ok=true commands_ok=true cursor_agents_ok=true
+    local cursor_exists=false agents_exists=false
+    local skills_ok=true
     [ -d "$PROJECT_DIR/.cursor/rules" ] && [ "$(ls -A "$PROJECT_DIR/.cursor/rules/" 2>/dev/null)" ] && cursor_exists=true
-    [ -f "$PROJECT_DIR/.agent-rules/CLAUDE.md" ] && claude_exists=true
     [ -f "$PROJECT_DIR/.agent-rules/AGENTS.md" ] && agents_exists=true
 
+    # HIST-005: manifest entries are prefix-qualified (e.g. 'gla-pre-commit')
+    # while source names are bare ('pre-commit'). Compare against the prefixed
+    # form — otherwise flipping $SKILL_PREFIX (or using the default) would make
+    # staleness-skip permanently fail.
+    local _sp="${SKILL_PREFIX:-}"
     if [ -f "$SKILLS_MANIFEST" ]; then
         local expected_skill
         for expected_skill in "$RULES_HOME/skills"/*/; do
             [ -d "$expected_skill" ] || continue
-            grep -qx "$(basename "$expected_skill")" "$SKILLS_MANIFEST" 2>/dev/null || { skills_ok=false; break; }
+            grep -qx "${_sp}$(basename "$expected_skill")" "$SKILLS_MANIFEST" 2>/dev/null || { skills_ok=false; break; }
         done
         if $skills_ok && [ -d "$RULES_HOME/extras" ]; then
             local extras_dir
@@ -129,29 +170,26 @@ check_staleness() {
                 [ -d "$extras_dir/skills" ] || continue
                 for expected_skill in "$extras_dir/skills"/*/; do
                     [ -d "$expected_skill" ] || continue
-                    grep -qx "$(basename "$expected_skill")" "$SKILLS_MANIFEST" 2>/dev/null || { skills_ok=false; break 2; }
+                    grep -qx "${_sp}$(basename "$expected_skill")" "$SKILLS_MANIFEST" 2>/dev/null || { skills_ok=false; break 2; }
                 done
             done
         fi
     else
         [ "$(ls -d "$RULES_HOME/skills/"*/ 2>/dev/null)" ] && skills_ok=false
     fi
-    [ -d "$RULES_HOME/commands" ] && [ "$(ls "$RULES_HOME/commands/"*.md 2>/dev/null)" ] && { [ -f "$COMMANDS_MANIFEST" ] || commands_ok=false; }
-    [ -d "$RULES_HOME/agents" ] && [ "$(ls "$RULES_HOME/agents/"*.md 2>/dev/null)" ] && { [ -f "$CURSOR_AGENTS_MANIFEST" ] || cursor_agents_ok=false; }
 
-    # Mode-aware required artifacts
+    # Mode-aware required artifacts. HIST-004: CLAUDE.md no longer tracked
+    # — only AGENTS.md remains as the legacy artifact (for Codex).
     local cc_rules_ok=true codex_config_ok=true
-    local claude_required=true agents_required=true
+    local agents_required=true
     [ "$CC_MODE" != "off" ] && { [ -d "$PROJECT_DIR/.claude/rules" ] && [ -n "$(ls "$PROJECT_DIR/.claude/rules/"*.md 2>/dev/null)" ] || cc_rules_ok=false; }
     [ "$CODEX_MODE" = "native" ] && { [ -f "$PROJECT_DIR/.codex/config.toml" ] || codex_config_ok=false; }
-    [ "$CC_MODE" = "native" ] && [ "$CODEX_MODE" = "off" ] && claude_required=false
     [ "$CODEX_MODE" = "off" ] && agents_required=false
 
     local legacy_ok=true
-    $claude_required && ! $claude_exists && legacy_ok=false
     $agents_required && ! $agents_exists && legacy_ok=false
 
-    if [ "$CURRENT_HASH" = "$stored_hash" ] && $cursor_exists && $legacy_ok && $skills_ok && $commands_ok && $cursor_agents_ok && $cc_rules_ok && $codex_config_ok; then
+    if [ "$CURRENT_HASH" = "$stored_hash" ] && $cursor_exists && $legacy_ok && $skills_ok && $cc_rules_ok && $codex_config_ok; then
         _ok "Rules up to date. No sync needed."
         exit 0
     fi

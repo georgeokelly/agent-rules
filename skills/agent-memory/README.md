@@ -16,6 +16,8 @@ cp -r agent-memory ~/.cursor/skills/
 
 ## 命令
 
+> **注**：通过 `agent-sync` 部署时默认前缀 `gla-`（HIST-005），实际调用变成 `/gla-agent-memory <子命令>`（例如 `/gla-agent-memory dump`）。前缀可在项目 `.agent-local.md` 的 `**Skill Prefix**: ...` 自定义或关闭（`none` = 关闭），详见 agent-toolkit 根 README 的 "Skill Prefix" 小节。
+
 在 Cursor 中通过 `/agent-memory <子命令>` 调用：
 
 | 命令 | 作用 |

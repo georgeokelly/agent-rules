@@ -12,16 +12,14 @@ set -euo pipefail
 #   5. File existence (all expected files present)
 #   6. Core .mdc semantic validation (alwaysApply must be true)
 #   7. Skills deployment validation (manifest + directory integrity)
-#   8. Commands deployment validation (manifest + file integrity)
-#   9. Worktrees.json deployment validation
-#  10. .vscode/settings.json validity (if exists)
-#  11. CC rules validation (.claude/rules/ frontmatter, when CC Mode != off)
-#  12. CC skills deployment validation (when CC Mode != off)
-#  13. CC commands deployment validation (when CC Mode != off)
-#  14. CC/Cursor consistency (rules count, skills set match)
-#  15. Codex .codex/config.toml validation (when Codex Mode = native)
-#  16. Codex skills deployment validation (when Codex Mode = native)
-#  17. Codex/CC/Cursor skills consistency (when Codex Mode = native)
+#   8. Worktrees.json deployment validation
+#   9. .vscode/settings.json validity (if exists)
+#  10. CC rules validation (.claude/rules/ frontmatter, when CC Mode != off)
+#  11. CC skills deployment validation (when CC Mode != off)
+#  12. CC/Cursor consistency (rules count, skills set match)
+#  13. Codex .codex/config.toml validation (when Codex Mode = native)
+#  14. Codex skills deployment validation (when Codex Mode = native)
+#  15. Codex/CC/Cursor skills consistency (when Codex Mode = native)
 
 show_help() {
     cat <<'EOF'
@@ -47,16 +45,14 @@ CHECKS PERFORMED
     5. Generated file existence (CLAUDE.md, AGENTS.md, .mdc files)
     6. Core .mdc alwaysApply validation (core rules must be always-on)
     7. Skills deployment validation (manifest + directory integrity)
-    8. Commands deployment validation (manifest + file integrity)
-    9. Worktrees.json deployment validation
-   10. .vscode/settings.json validity
-   11. CC rules validation (when CC Mode != off)
-   12. CC skills deployment validation (when CC Mode != off)
-   13. CC commands deployment validation (when CC Mode != off)
-   14. CC/Cursor consistency (when CC Mode != off)
-   15. Codex .codex/config.toml validation (when Codex Mode = native)
-   16. Codex skills deployment validation (when Codex Mode = native)
-   17. Codex/CC/Cursor skills consistency (when Codex Mode = native)
+    8. Worktrees.json deployment validation
+    9. .vscode/settings.json validity
+   10. CC rules validation (when CC Mode != off)
+   11. CC skills deployment validation (when CC Mode != off)
+   12. CC/Cursor consistency (when CC Mode != off)
+   13. Codex .codex/config.toml validation (when Codex Mode = native)
+   14. Codex skills deployment validation (when Codex Mode = native)
+   15. Codex/CC/Cursor skills consistency (when Codex Mode = native)
 
 EXAMPLES
     agent-check                  # Check rules in current directory
@@ -90,11 +86,15 @@ echo "Checking rules in $PROJECT_DIR"
 echo "================================"
 
 # --- Detect CC Mode ---
-CC_MODE="dual"
+# HIST-004: 'dual' was removed; it silently folds to 'native' here so an old
+# overlay doesn't falsely trigger "Unknown CC Mode" warnings. resolve_cc_mode
+# in agent-sync emits the deprecation warning on the sync side.
+CC_MODE="native"
 if [ -f "$PROJECT_DIR/.agent-local.md" ]; then
     _cc_mode="$(sed -n 's/^\*\*CC Mode\*\*:[[:space:]]*//p' "$PROJECT_DIR/.agent-local.md" | head -1 | sed 's/<!--.*-->//' | xargs)"
     case "$_cc_mode" in
-        off|dual|native) CC_MODE="$_cc_mode" ;;
+        off|native) CC_MODE="$_cc_mode" ;;
+        dual) CC_MODE="native" ;;
     esac
 fi
 
@@ -107,9 +107,9 @@ if [ -f "$PROJECT_DIR/.agent-local.md" ]; then
     esac
 fi
 
-TOTAL_CHECKS=10
+TOTAL_CHECKS=9
 if [ "$CC_MODE" != "off" ]; then
-    TOTAL_CHECKS=14
+    TOTAL_CHECKS=12
 fi
 if [ "$CODEX_MODE" = "native" ]; then
     TOTAL_CHECKS=$((TOTAL_CHECKS + 3))
@@ -203,15 +203,10 @@ if [ -f "$HASH_FILE" ]; then
 
     CURRENT_OVERLAY_HASH="$(find "$PROJECT_DIR" -maxdepth 3 -name '.agent-local.md' -not -path '*/.git/*' -not -path '*/node_modules/*' -type f -exec "$HASH_CMD" {} + 2>/dev/null | sort | "$HASH_CMD" | awk '{print $1}')"
 
-    CURRENT_REVIEWER_CONF_HASH=""
-    if [ -f "$PROJECT_DIR/.cursor/reviewer-models.conf" ]; then
-        CURRENT_REVIEWER_CONF_HASH="$("$HASH_CMD" "$PROJECT_DIR/.cursor/reviewer-models.conf" 2>/dev/null | awk '{print $1}')"
-    fi
-
-    CURRENT_HASH="${CURRENT_RULES_HASH}:${CURRENT_OVERLAY_HASH}:${CURRENT_REVIEWER_CONF_HASH}"
+    CURRENT_HASH="${CURRENT_RULES_HASH}:${CURRENT_OVERLAY_HASH}"
 
     if [ "$CURRENT_HASH" = "$STORED_HASH" ]; then
-        pass "Rules are up to date with last sync (rules repo + overlays + reviewer config)"
+        pass "Rules are up to date with last sync (rules repo + overlays)"
     else
         warn "Rules have been updated since last sync. Run agent-sync."
     fi
@@ -224,27 +219,19 @@ fi
 echo ""
 echo "[5/$TOTAL_CHECKS] Generated file existence"
 
-# CLAUDE.md / AGENTS.md requirements depend on CC_MODE / CODEX_MODE
-local_claude_required=true
-local_agents_required=true
-# Legacy CLAUDE.md not required when CC is native + Codex is off
-if [ "$CC_MODE" = "native" ] && [ "$CODEX_MODE" = "off" ]; then
-    local_claude_required=false
-fi
-# AGENTS.md not required when Codex is off
-if [ "$CODEX_MODE" = "off" ]; then
-    local_agents_required=false
+# HIST-004: CLAUDE.md is no longer generated — we assert its absence so
+# upgrading projects that didn't run `agent-sync` yet get a clear fail
+# signal pointing at the decommission.
+if [ -f "$PROJECT_DIR/.agent-rules/CLAUDE.md" ]; then
+    fail ".agent-rules/CLAUDE.md present — run 'agent-sync' to purge (HIST-004 decommissioned CLAUDE.md)"
+else
+    pass ".agent-rules/CLAUDE.md absent (HIST-004 — CLAUDE.md decommissioned)"
 fi
 
-if $local_claude_required; then
-    if [ -f "$PROJECT_DIR/.agent-rules/CLAUDE.md" ]; then
-        pass ".agent-rules/CLAUDE.md exists"
-    else
-        fail ".agent-rules/CLAUDE.md not found"
-    fi
-else
-    pass ".agent-rules/CLAUDE.md not required (CC Mode: $CC_MODE, Codex Mode: $CODEX_MODE)"
-fi
+# AGENTS.md required only when Codex mode is non-off.
+local_agents_required=true
+[ "$CODEX_MODE" = "off" ] && local_agents_required=false
+
 if $local_agents_required; then
     if [ -f "$PROJECT_DIR/.agent-rules/AGENTS.md" ]; then
         pass ".agent-rules/AGENTS.md exists"
@@ -330,49 +317,10 @@ else
     pass "No skills in rules repo (nothing to validate)"
 fi
 
-# --- 8. Commands deployment validation ---
+# --- 8. Worktrees.json deployment validation ---
 
 echo ""
-echo "[8/$TOTAL_CHECKS] Commands deployment validation"
-
-COMMANDS_MANIFEST="$PROJECT_DIR/.cursor/commands/.agent-sync-commands-manifest"
-COMMANDS_SRC="$RULES_HOME/commands"
-HAS_SOURCE_COMMANDS=false
-if [ -d "$COMMANDS_SRC" ] && [ "$(ls "$COMMANDS_SRC"/*.md 2>/dev/null)" ]; then
-    HAS_SOURCE_COMMANDS=true
-fi
-
-if $HAS_SOURCE_COMMANDS; then
-    if [ -f "$COMMANDS_MANIFEST" ]; then
-        COMMANDS_OK=true
-        COMMANDS_CHECKED=0
-        while IFS= read -r cmd_name; do
-            [ -z "$cmd_name" ] && continue
-            COMMANDS_CHECKED=$((COMMANDS_CHECKED + 1))
-            cmd_file="$PROJECT_DIR/.cursor/commands/$cmd_name"
-            if [ -f "$cmd_file" ]; then
-                pass "Command '$cmd_name' deployed"
-            else
-                fail "Command '$cmd_name' listed in manifest but missing"
-                COMMANDS_OK=false
-            fi
-        done < "$COMMANDS_MANIFEST"
-        if [ "$COMMANDS_CHECKED" -eq 0 ]; then
-            fail "Commands manifest exists but is empty. Run agent-sync to regenerate."
-        elif $COMMANDS_OK; then
-            pass "All $COMMANDS_CHECKED manifest commands are deployed"
-        fi
-    else
-        fail "Rules repo has commands but .agent-sync-commands-manifest not found. Run agent-sync."
-    fi
-else
-    pass "No commands in rules repo (nothing to validate)"
-fi
-
-# --- 9. Worktrees.json deployment validation ---
-
-echo ""
-echo "[9/$TOTAL_CHECKS] Worktrees.json deployment validation"
+echo "[8/$TOTAL_CHECKS] Worktrees.json deployment validation"
 
 WORKTREES_TEMPLATE="$RULES_HOME/templates/worktrees.json"
 WORKTREES_TARGET="$PROJECT_DIR/.cursor/worktrees.json"
@@ -408,10 +356,10 @@ else
     pass "No worktrees.json template in rules repo (nothing to validate)"
 fi
 
-# --- 10. .vscode/settings.json validity ---
+# --- 9. .vscode/settings.json validity ---
 
 echo ""
-echo "[10/$TOTAL_CHECKS] .vscode/settings.json validation"
+echo "[9/$TOTAL_CHECKS] .vscode/settings.json validation"
 
 VSCODE_SETTINGS="$PROJECT_DIR/.vscode/settings.json"
 if [ -f "$VSCODE_SETTINGS" ]; then
@@ -434,14 +382,14 @@ else
     pass ".vscode/settings.json not present (no validation needed)"
 fi
 
-# --- 11-14. CC native checks (only when CC Mode != off) ---
+# --- 10-12. CC native checks (only when CC Mode != off) ---
 
 if [ "$CC_MODE" != "off" ]; then
 
-# --- 11. CC rules validation ---
+# --- 10. CC rules validation ---
 
 echo ""
-echo "[11/$TOTAL_CHECKS] CC rules validation (.claude/rules/)"
+echo "[10/$TOTAL_CHECKS] CC rules validation (.claude/rules/)"
 
 if [ -d "$PROJECT_DIR/.claude/rules" ]; then
     CC_RULE_COUNT=0
@@ -470,10 +418,10 @@ else
     fail ".claude/rules/ directory not found (CC Mode: $CC_MODE)"
 fi
 
-# --- 12. CC skills validation ---
+# --- 11. CC skills validation ---
 
 echo ""
-echo "[12/$TOTAL_CHECKS] CC skills deployment validation"
+echo "[11/$TOTAL_CHECKS] CC skills deployment validation"
 
 CC_SKILLS_MF="$PROJECT_DIR/.claude/skills/.agent-sync-skills-manifest"
 CC_HAS_SOURCE_SKILLS=false
@@ -508,59 +456,33 @@ else
     pass "No skills in rules repo (CC skills: nothing to validate)"
 fi
 
-# --- 13. CC commands validation ---
+# --- 12. CC/Cursor consistency ---
 
 echo ""
-echo "[13/$TOTAL_CHECKS] CC commands deployment validation"
-
-CC_COMMANDS_MF="$PROJECT_DIR/.claude/commands/.agent-sync-commands-manifest"
-CC_HAS_SOURCE_COMMANDS=false
-if [ -d "$RULES_HOME/commands" ] && [ "$(ls "$RULES_HOME/commands"/*.md 2>/dev/null)" ]; then
-    CC_HAS_SOURCE_COMMANDS=true
-fi
-
-if $CC_HAS_SOURCE_COMMANDS; then
-    if [ -f "$CC_COMMANDS_MF" ]; then
-        CC_COMMANDS_OK=true
-        CC_COMMANDS_CHECKED=0
-        while IFS= read -r cc_cmd_name; do
-            [ -z "$cc_cmd_name" ] && continue
-            CC_COMMANDS_CHECKED=$((CC_COMMANDS_CHECKED + 1))
-            cc_cmd_file="$PROJECT_DIR/.claude/commands/$cc_cmd_name"
-            if [ -f "$cc_cmd_file" ]; then
-                pass "CC command '$cc_cmd_name' deployed"
-            else
-                fail "CC command '$cc_cmd_name' listed in manifest but missing"
-                CC_COMMANDS_OK=false
-            fi
-        done < "$CC_COMMANDS_MF"
-        if [ "$CC_COMMANDS_CHECKED" -eq 0 ]; then
-            fail "CC commands manifest exists but is empty. Run agent-sync."
-        elif $CC_COMMANDS_OK; then
-            pass "All $CC_COMMANDS_CHECKED CC commands are deployed"
-        fi
-    else
-        fail "Rules repo has commands but CC commands manifest not found. Run agent-sync."
-    fi
-else
-    pass "No commands in rules repo (CC commands: nothing to validate)"
-fi
-
-# --- 14. CC/Cursor consistency ---
-
-echo ""
-echo "[14/$TOTAL_CHECKS] CC/Cursor consistency"
+echo "[12/$TOTAL_CHECKS] CC/Cursor consistency"
 
 if [ -d "$PROJECT_DIR/.claude/rules" ] && [ -d "$PROJECT_DIR/.cursor/rules" ]; then
     CURSOR_COUNT=$(ls "$PROJECT_DIR/.cursor/rules/"*.mdc 2>/dev/null | wc -l | tr -d ' ')
     CC_COUNT=$(ls "$PROJECT_DIR/.claude/rules/"*.md 2>/dev/null | wc -l | tr -d ' ')
-    # CC is expected to have fewer files (review-criteria is Cursor-only)
-    if [ "$CC_COUNT" -le "$CURSOR_COUNT" ] && [ "$CC_COUNT" -gt 0 ]; then
-        pass "CC rules ($CC_COUNT) <= Cursor rules ($CURSOR_COUNT) — consistent (CC excludes Cursor-only rules)"
+    # CC_COUNT <= CURSOR_COUNT is the expected steady state: gen-cursor.sh deploys
+    # ALL packs unconditionally, while gen-claude.sh filters by pack_is_active().
+    # Any overlay that activates fewer than all packs (the common case) will
+    # legitimately produce a smaller CC rule set. Divergence is only suspicious
+    # when CC > Cursor (which means Cursor dropped something it should not have).
+    if [ "$CC_COUNT" -gt 0 ] && [ "$CURSOR_COUNT" -gt 0 ] && [ "$CC_COUNT" -le "$CURSOR_COUNT" ]; then
+        if [ "$CC_COUNT" -eq "$CURSOR_COUNT" ]; then
+            pass "CC rules ($CC_COUNT) = Cursor rules ($CURSOR_COUNT) — consistent"
+        else
+            pass "CC rules ($CC_COUNT) <= Cursor rules ($CURSOR_COUNT) — consistent (CC filters inactive packs)"
+        fi
     elif [ "$CC_COUNT" -gt "$CURSOR_COUNT" ]; then
         warn "CC rules ($CC_COUNT) > Cursor rules ($CURSOR_COUNT) — unexpected divergence"
+    elif [ "$CC_COUNT" -eq 0 ] && [ "$CURSOR_COUNT" -gt 0 ]; then
+        # CC_MODE != off but .claude/rules is empty while .cursor/rules is populated —
+        # indicates a failed or partial CC sync, not an empty-repo state.
+        warn "CC rules (0) while Cursor rules ($CURSOR_COUNT) populated — CC deployment may have failed"
     else
-        warn "CC rules count is 0 but Cursor has $CURSOR_COUNT rules"
+        warn "Both CC and Cursor rule dirs are empty"
     fi
 else
     if [ ! -d "$PROJECT_DIR/.claude/rules" ]; then
@@ -582,11 +504,11 @@ fi
 
 fi  # end CC_MODE != off
 
-# --- 15-17. Codex native checks (only when Codex Mode = native) ---
+# --- 13-15. Codex native checks (only when Codex Mode = native) ---
 
 if [ "$CODEX_MODE" = "native" ]; then
 
-# --- 15. Codex config.toml validation ---
+# --- 13. Codex config.toml validation ---
 
 echo ""
 echo "[$(($TOTAL_CHECKS - 2))/$TOTAL_CHECKS] Codex .codex/config.toml validation"
@@ -626,7 +548,7 @@ else
     fail ".codex/config.toml not found (Codex Mode: native)"
 fi
 
-# --- 16. Codex skills validation ---
+# --- 14. Codex skills validation ---
 
 echo ""
 echo "[$(($TOTAL_CHECKS - 1))/$TOTAL_CHECKS] Codex skills deployment validation"
@@ -664,26 +586,30 @@ else
     pass "No skills in rules repo (Codex skills: nothing to validate)"
 fi
 
-# --- 17. Codex/CC/Cursor skills consistency ---
+# --- 15. Codex/CC/Cursor skills consistency ---
 
 echo ""
 echo "[$TOTAL_CHECKS/$TOTAL_CHECKS] Codex/CC/Cursor skills consistency"
 
-CURSOR_SKILLS_MF_17="$PROJECT_DIR/.cursor/skills/.agent-sync-skills-manifest"
-CC_SKILLS_MF_17="$PROJECT_DIR/.claude/skills/.agent-sync-skills-manifest"
-if [ -f "$CODEX_SKILLS_MF" ] && [ -f "$CURSOR_SKILLS_MF_17" ]; then
-    CURSOR_SKILL_SET_17=$(sort "$CURSOR_SKILLS_MF_17" | tr '\n' ',')
-    CODEX_SKILL_SET_17=$(sort "$CODEX_SKILLS_MF" | tr '\n' ',')
-    if [ "$CURSOR_SKILL_SET_17" = "$CODEX_SKILL_SET_17" ]; then
+# Re-declare the peer manifest paths locally — CC_SKILLS_MF / CURSOR_SKILLS_MF
+# are only set inside the CC_MODE != off block above, but this Codex block can
+# run independently (e.g. CC_MODE=off + Codex=native), so we need our own copy
+# to avoid unbound-variable failures under set -u.
+CODEX_CHECK_CURSOR_SKILLS_MF="$PROJECT_DIR/.cursor/skills/.agent-sync-skills-manifest"
+CODEX_CHECK_CC_SKILLS_MF="$PROJECT_DIR/.claude/skills/.agent-sync-skills-manifest"
+if [ -f "$CODEX_SKILLS_MF" ] && [ -f "$CODEX_CHECK_CURSOR_SKILLS_MF" ]; then
+    CODEX_CHECK_CURSOR_SET=$(sort "$CODEX_CHECK_CURSOR_SKILLS_MF" | tr '\n' ',')
+    CODEX_CHECK_CODEX_SET=$(sort "$CODEX_SKILLS_MF" | tr '\n' ',')
+    if [ "$CODEX_CHECK_CURSOR_SET" = "$CODEX_CHECK_CODEX_SET" ]; then
         pass "Codex and Cursor skill sets match"
     else
         warn "Codex and Cursor skill sets differ — check agent-sync output"
     fi
 fi
-if [ -f "$CODEX_SKILLS_MF" ] && [ -f "$CC_SKILLS_MF_17" ]; then
-    CC_SKILL_SET_17=$(sort "$CC_SKILLS_MF_17" | tr '\n' ',')
-    CODEX_SKILL_SET_C17=$(sort "$CODEX_SKILLS_MF" | tr '\n' ',')
-    if [ "$CC_SKILL_SET_17" = "$CODEX_SKILL_SET_C17" ]; then
+if [ -f "$CODEX_SKILLS_MF" ] && [ -f "$CODEX_CHECK_CC_SKILLS_MF" ]; then
+    CODEX_CHECK_CC_SET=$(sort "$CODEX_CHECK_CC_SKILLS_MF" | tr '\n' ',')
+    CODEX_CHECK_CODEX_SET_FOR_CC=$(sort "$CODEX_SKILLS_MF" | tr '\n' ',')
+    if [ "$CODEX_CHECK_CC_SET" = "$CODEX_CHECK_CODEX_SET_FOR_CC" ]; then
         pass "Codex and CC skill sets match"
     else
         warn "Codex and CC skill sets differ — check agent-sync output"

@@ -1,8 +1,15 @@
-# lib/gen-cursor.sh — Cursor-specific generation (rules, skills, commands, agents, worktrees)
+# lib/gen-cursor.sh — Cursor-specific generation (rules, skills, worktrees)
 # Sourced by agent-sync.sh. Do not execute directly.
 
 generate_cursor() {
     mkdir -p "$PROJECT_DIR/.cursor/rules"
+    # One-shot orphan cleanup for HIST-003 (commands/review decommission):
+    # core/30-review-criteria.md is gone, but pre-refactor deployments still
+    # carry the generated .mdc. This file is 100% agent-sync-managed (not in
+    # the user-managed path-set we intentionally protect), so unconditional
+    # removal is safe and non-destructive for fresh projects where the file
+    # never existed.
+    rm -f "$PROJECT_DIR/.cursor/rules/30-review-criteria.mdc" 2>/dev/null || true
     local frontmatter_dir="$RULES_HOME/templates/cursor-frontmatter"
 
     local rule_file basename_no_ext lookup_name target
@@ -43,51 +50,7 @@ generate_cursor() {
 }
 
 generate_skills() {
-    deploy_artifacts "$RULES_HOME/skills" "$PROJECT_DIR/.cursor/skills" "$SKILLS_MANIFEST" "Skills" "dirs"
-}
-
-generate_commands() {
-    deploy_artifacts "$RULES_HOME/commands" "$PROJECT_DIR/.cursor/commands" "$COMMANDS_MANIFEST" "Commands" "files"
-}
-
-generate_cursor_agents() {
-    deploy_artifacts "$RULES_HOME/agents" "$PROJECT_DIR/.cursor/agents" "$CURSOR_AGENTS_MANIFEST" "Agents" "files"
-}
-
-# --- Reviewer models config ---
-
-REVIEWER_CONF_TEMPLATE="$RULES_HOME/templates/reviewer-models.conf"
-REVIEWER_CONF_TARGET="$PROJECT_DIR/.cursor/reviewer-models.conf"
-REVIEWER_CONF_STAMP="$PROJECT_DIR/.cursor/.reviewer-models-agent-sync"
-
-deploy_reviewer_models_conf() {
-    [ -f "$REVIEWER_CONF_TEMPLATE" ] || return 0
-    mkdir -p "$PROJECT_DIR/.cursor"
-
-    if [ -f "$REVIEWER_CONF_TARGET" ] && [ ! -f "$REVIEWER_CONF_STAMP" ]; then
-        _warn "  SKIP: .cursor/reviewer-models.conf exists and is not managed by agent-sync."
-        _warn "        To let agent-sync manage it, delete it and re-run."
-        return 0
-    fi
-
-    [ -f "$REVIEWER_CONF_TARGET" ] && [ ! -w "$REVIEWER_CONF_TARGET" ] && rm -f "$REVIEWER_CONF_TARGET"
-    cp "$REVIEWER_CONF_TEMPLATE" "$REVIEWER_CONF_TARGET"
-    touch "$REVIEWER_CONF_STAMP"
-    echo "  Reviewer models: .cursor/reviewer-models.conf deployed"
-}
-
-# --- Reviewer variant generation ---
-
-REVIEWER_VARIANTS_MANIFEST="$PROJECT_DIR/.cursor/agents/.generated-reviewers-manifest"
-
-generate_reviewer_variants() {
-    local gen_script="$RULES_HOME/scripts/generate-reviewers.sh"
-    [ -x "$gen_script" ] || return 0
-
-    local conf_file="$PROJECT_DIR/.cursor/reviewer-models.conf"
-    [ -f "$conf_file" ] || [ -f "$REVIEWER_VARIANTS_MANIFEST" ] || return 0
-
-    AGENT_TOOLKIT_HOME="$RULES_HOME" "$gen_script" "$PROJECT_DIR"
+    deploy_artifacts "$RULES_HOME/skills" "$PROJECT_DIR/.cursor/skills" "$SKILLS_MANIFEST" "Skills"
 }
 
 # --- Worktrees deployment ---

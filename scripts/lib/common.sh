@@ -21,12 +21,65 @@ print(re.sub(r'<!--.*?-->\n?', '', text, flags=re.DOTALL), end='')
         || cat
 }
 
+# --- Skill prefix frontmatter rewriter (HIST-005) ---
+# Rewrites a deployed SKILL.md's frontmatter `name:` value to include
+# $SKILL_PREFIX. Idempotent: skips if the current name already starts with the
+# prefix. Uses perl -i for portable in-place editing (macOS BSD sed and GNU sed
+# disagree on the `-i` argument; perl is consistent on both). Falls back to
+# python3 if perl is unavailable. Only rewrites the first `^name:` match —
+# YAML frontmatter always sits at the top, so this avoids touching literal
+# `name:` strings that may appear in the skill's body text.
+# Args: $1=skill_dir
+_apply_skill_prefix() {
+    local skill_file="$1/SKILL.md"
+    [ -n "${SKILL_PREFIX:-}" ] || return 0
+    [ -f "$skill_file" ] || return 0
+
+    SKILL_PREFIX="$SKILL_PREFIX" perl -i -pe '
+        BEGIN { $done = 0 }
+        if (!$done && /^name:\s*(\S.*?)\s*$/) {
+            my $name = $1;
+            my $p = $ENV{SKILL_PREFIX};
+            $_ = "name: ${p}${name}\n" unless index($name, $p) == 0;
+            $done = 1;
+        }
+    ' "$skill_file" 2>/dev/null && return 0
+
+    SKILL_PREFIX="$SKILL_PREFIX" python3 - "$skill_file" <<'PY' 2>/dev/null
+import os, re, sys
+path = sys.argv[1]
+prefix = os.environ["SKILL_PREFIX"]
+with open(path, "r", encoding="utf-8") as f:
+    text = f.read()
+def sub(m):
+    name = m.group(1).strip()
+    return m.group(0) if name.startswith(prefix) else f"name: {prefix}{name}"
+new = re.sub(r"^name:\s*(\S.*?)\s*$", sub, text, count=1, flags=re.MULTILINE)
+if new != text:
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(new)
+PY
+}
+
 # --- Generic artifact deployment ---
-# Deploys skills (directories) or commands/agents (files) from core + extras to target.
-# Handles core-priority conflict resolution, manifest-based stale cleanup.
-# Args: $1=src_dir $2=target_dir $3=manifest_file $4=label $5=mode(dirs|files)
+# Deploys skill-style directory artifacts from core + extras to target. Handles
+# core-priority conflict resolution and manifest-based stale cleanup. The only
+# live callers sync skill directories (see generate_skills / generate_cc_skills
+# / generate_codex_skills). The former `files` mode (flat *.md) was used by the
+# decommissioned commands/ subsystem and has been removed — a future flat
+# deployer, if needed, should add a dedicated helper rather than re-introduce a
+# mode switch (YAGNI; git history preserves the previous implementation).
+#
+# HIST-005: when $SKILL_PREFIX is non-empty, each deployed item's target name
+# and SKILL.md frontmatter `name:` are prefixed (e.g. 'pre-commit' →
+# 'gla-pre-commit'). Manifests record the prefixed names, so stale cleanup
+# tracks target-side identity (including when the user toggles the overlay
+# opt-out on/off between syncs).
+#
+# Args: $1=src_dir $2=target_dir $3=manifest_file $4=label
 deploy_artifacts() {
-    local src_dir="$1" target_dir="$2" manifest_file="$3" label="$4" mode="$5"
+    local src_dir="$1" target_dir="$2" manifest_file="$3" label="$4"
+    local prefix="${SKILL_PREFIX:-}"
     [ -d "$src_dir" ] || return 0
 
     local count=0
@@ -34,29 +87,23 @@ deploy_artifacts() {
     mkdir -p "$target_dir"
     : > "$manifest_new"
 
-    local item item_name item_target
-    if [ "$mode" = "dirs" ]; then
-        for item in "$src_dir"/*/; do
-            [ -d "$item" ] || continue
-            item_name="$(basename "$item")"
-            item_target="$target_dir/$item_name"
-            rm -rf "$item_target"
-            mkdir -p "$item_target"
-            [ -n "$(ls -A "$item" 2>/dev/null)" ] && cp -a "$item/." "$item_target/"
-            echo "$item_name" >> "$manifest_new"
-            count=$((count + 1))
-        done
-    else
-        for item in "$src_dir"/*.md; do
-            [ -f "$item" ] || continue
-            item_name="$(basename "$item")"
-            cp "$item" "$target_dir/$item_name"
-            echo "$item_name" >> "$manifest_new"
-            count=$((count + 1))
-        done
-    fi
+    local item item_name item_target_name item_target
+    for item in "$src_dir"/*/; do
+        [ -d "$item" ] || continue
+        item_name="$(basename "$item")"
+        item_target_name="${prefix}${item_name}"
+        item_target="$target_dir/$item_target_name"
+        rm -rf "$item_target"
+        mkdir -p "$item_target"
+        [ -n "$(ls -A "$item" 2>/dev/null)" ] && cp -a "$item/." "$item_target/"
+        _apply_skill_prefix "$item_target"
+        echo "$item_target_name" >> "$manifest_new"
+        count=$((count + 1))
+    done
 
-    # Deploy from extras/ — core takes priority
+    # Deploy from extras/ — core takes priority. extras/ items are prefixed by
+    # the same rule as core (HIST-005 assumption: all skill sources share one
+    # naming convention under agent-toolkit's deploy pipeline).
     local src_type
     src_type="$(basename "$src_dir")"
     if [ -d "$RULES_HOME/extras" ]; then
@@ -65,48 +112,32 @@ deploy_artifacts() {
             extras_sub="$extras_dir$src_type"
             [ -d "$extras_sub" ] || continue
             bundle_name="$(basename "$extras_dir")"
-            if [ "$mode" = "dirs" ]; then
-                for item in "$extras_sub"/*/; do
-                    [ -d "$item" ] || continue
-                    item_name="$(basename "$item")"
-                    if [ -d "$src_dir/$item_name" ]; then
-                        _warn "  SKIP: extras/$bundle_name $src_type '$item_name' — same name exists in core (core wins)"
-                        continue
-                    fi
-                    item_target="$target_dir/$item_name"
-                    rm -rf "$item_target"
-                    mkdir -p "$item_target"
-                    [ -n "$(ls -A "$item" 2>/dev/null)" ] && cp -a "$item/." "$item_target/"
-                    echo "$item_name" >> "$manifest_new"
-                    count=$((count + 1))
-                done
-            else
-                for item in "$extras_sub"/*.md; do
-                    [ -f "$item" ] || continue
-                    item_name="$(basename "$item")"
-                    if [ -f "$src_dir/$item_name" ]; then
-                        _warn "  SKIP: extras/$bundle_name $src_type '$item_name' — same name exists in core (core wins)"
-                        continue
-                    fi
-                    cp "$item" "$target_dir/$item_name"
-                    echo "$item_name" >> "$manifest_new"
-                    count=$((count + 1))
-                done
-            fi
+            for item in "$extras_sub"/*/; do
+                [ -d "$item" ] || continue
+                item_name="$(basename "$item")"
+                if [ -d "$src_dir/$item_name" ]; then
+                    _warn "  SKIP: extras/$bundle_name $src_type '$item_name' — same name exists in core (core wins)"
+                    continue
+                fi
+                item_target_name="${prefix}${item_name}"
+                item_target="$target_dir/$item_target_name"
+                rm -rf "$item_target"
+                mkdir -p "$item_target"
+                [ -n "$(ls -A "$item" 2>/dev/null)" ] && cp -a "$item/." "$item_target/"
+                _apply_skill_prefix "$item_target"
+                echo "$item_target_name" >> "$manifest_new"
+                count=$((count + 1))
+            done
         done
     fi
 
-    # Remove items that were previously synced but no longer exist
+    # Remove directories that were previously synced but no longer exist.
     if [ -f "$manifest_file" ]; then
         local old_item
         while IFS= read -r old_item; do
             [ -z "$old_item" ] && continue
             if ! grep -qx "$old_item" "$manifest_new" 2>/dev/null; then
-                if [ "$mode" = "dirs" ]; then
-                    rm -rf "$target_dir/$old_item"
-                else
-                    rm -f "$target_dir/$old_item"
-                fi
+                rm -rf "$target_dir/$old_item"
                 echo "  Removed stale $label: $old_item"
             fi
         done < "$manifest_file"
@@ -117,6 +148,9 @@ deploy_artifacts() {
 }
 
 # Clean all items tracked by a manifest, then remove the manifest itself.
+# CC rules use the `files` mode (flat *.md); skills use the `dirs` mode. This
+# function is intentionally retained separately from deploy_artifacts — it has
+# two distinct callers (CC rules in files mode, skill manifests in dirs mode).
 # Args: $1=manifest $2=base_dir $3=mode(dirs|files)
 clean_manifest() {
     local manifest="$1" base_dir="$2" mode="$3"

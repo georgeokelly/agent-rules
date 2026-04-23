@@ -1,12 +1,20 @@
 ---
 name: project-overlay
 description: Create or update project-specific AI configuration (.agent-local.md) through guided conversation. Use when the user wants to create overlay, init project, setup agent rules, 创建项目配置, 初始化规则, update overlay, 更新项目配置, or when .agent-local.md is missing or outdated.
+when_to_use: >-
+  Trigger when (a) the user explicitly asks to create/update/refresh an
+  `.agent-local.md` overlay for the current project or a sub-repo, (b) the
+  file is missing and the user is asking to "init" / "setup rules" for this
+  repo, or (c) passive signals indicate overlay drift — new language/framework
+  files that are not reflected in `Packs:`, a structural reorganization that
+  contradicts the recorded `Project Structure`, or references to deleted/
+  renamed directories. For the passive case, propose the Update Flow rather
+  than silently editing the file.
 compatibility: Designed for Cursor (agent mode). Requires access to the project filesystem and $AGENT_TOOLKIT_HOME templates directory.
 disable-model-invocation: true
 metadata:
   author: georgel
-  version: "1.1"
-license: No
+  version: "1.2"
 ---
 
 # Project Overlay

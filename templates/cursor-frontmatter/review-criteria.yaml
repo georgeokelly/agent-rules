@@ -1,5 +1,0 @@
-description: >
-  Shared review criteria for all reviewer sub-agents.
-  Applied automatically when reviewer agent files are active.
-globs:
-  - .cursor/agents/reviewer*.md
