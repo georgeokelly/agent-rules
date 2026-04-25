@@ -1,20 +1,42 @@
 ---
-# Frontmatter fields follow the agentskills.io specification.
-# Cross-tool: Cursor, Claude Code, and Codex all parse `name` + `description`.
+# Spec (required)
 name: pre-commit
 description: >-
   Draft a copy-pasteable `git commit` command from staged (or unstaged)
   changes. Use when the user asks to create a commit, write a commit message,
   `/pre-commit`, 提交, 起草 commit. Does NOT execute git commit — only drafts
   it for user review.
-when_to_use: >-
-  Use ONLY when the user explicitly asks to draft a git commit message or
-  run a pre-commit flow. Do NOT auto-use for unrelated git operations
-  (status, push, branch, log, etc.).
+
+# Spec (optional)
+license: MIT
 compatibility: Cross-tool (Cursor, Claude Code, Codex). Requires git repo. Readonly semantics — drafts the command only, never executes `git commit`.
 metadata:
   author: georgel
   version: "0.1"
+
+# Spec (experimental)
+# allowed-tools: Bash(git add *) Bash(git commit *) Read  # support claude only
+# disable-model-invocation: true                          # support cursor + claude
+
+# Spec (claude-only)
+when_to_use: >-
+  Use ONLY when the user explicitly asks to draft a git commit message or
+  run a pre-commit flow. Do NOT auto-use for unrelated git operations
+  (status, push, branch, log, etc.).
+# argument-hint: "[issue-number] [branch]"
+# arguments: [issue, branch]
+# user-invocable: true
+# model: sonnet        # sonnet / opus / haiku / id / inherit
+# effort: medium       # low / medium / high / xhigh / max
+# context: fork        # When forking, run the body in an independent subagent context
+# agent: general-purpose
+# hooks:
+#   PreToolUse: ./hooks/<pre.sh>
+#   PostToolUse: ./hooks/<post.sh>
+#   Stop: ./hooks/<stop.sh>
+# paths:
+#   - "src/**/*.ts"
+# shell: bash          # bash / powershell
 ---
 
 # Pre-Commit

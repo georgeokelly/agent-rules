@@ -1,6 +1,5 @@
 ---
-# Frontmatter fields follow the agentskills.io specification.
-# Cross-tool: Cursor, Claude Code, and Codex all parse `name` + `description`.
+# Spec (required)
 name: simple-review
 description: >-
   Lightweight single-model third-party review of any artifact (code, design
@@ -9,16 +8,39 @@ description: >-
   评审, 审查. Multi-model orchestration (if/when a dedicated `/review` command
   ships under `extras/agent-extension`) is out of scope for this skill; until
   then this skill is the single entrypoint for review work.
+
+# Spec (optional)
+license: MIT
+compatibility: Cross-tool (Cursor, Claude Code, Codex). Readonly — outputs a structured review report only; no file writes required.
+metadata:
+  author: georgel
+  version: "0.1"
+
+# Spec (experimental)
+# allowed-tools: Bash(git add *) Bash(git commit *) Read  # support claude only
+# disable-model-invocation: true                          # support cursor + claude
+
+# Spec (claude-only)
 when_to_use: >-
   Use ONLY when the user explicitly asks to review, critique, or audit an
   EXISTING artifact, and wants a strict third-party assessment with
   severity-ranked findings and evidence. Do NOT use when the user wants you
   to write, design, or implement something new — this skill is for
   critiquing work already authored by others, not for producing it.
-compatibility: Cross-tool (Cursor, Claude Code, Codex). Readonly — outputs a structured review report only; no file writes required.
-metadata:
-  author: georgel
-  version: "0.1"
+# argument-hint: "[issue-number] [branch]"
+# arguments: [issue, branch]
+# user-invocable: true
+# model: sonnet        # sonnet / opus / haiku / id / inherit
+# effort: medium       # low / medium / high / xhigh / max
+# context: fork        # When forking, run the body in an independent subagent context
+# agent: general-purpose
+# hooks:
+#   PreToolUse: ./hooks/<pre.sh>
+#   PostToolUse: ./hooks/<post.sh>
+#   Stop: ./hooks/<stop.sh>
+# paths:
+#   - "src/**/*.ts"
+# shell: bash          # bash / powershell
 ---
 
 # Simple Review

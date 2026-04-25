@@ -1,0 +1,5 @@
+name: <sub-agent-name>
+description: <WHAT the sub-agent does>. Use when <trigger scenarios>.
+model: <inherit / fast / routing-id>
+readonly: <true / false>
+is_background: <true / false>

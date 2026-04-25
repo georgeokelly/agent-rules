@@ -5,11 +5,11 @@ set -euo pipefail
 # Usage: agent-check.sh [project-dir]
 #
 # Checks:
-#   1. Codex AGENTS.md size (must be < 32KiB)
+#   1. Codex AGENTS.override.md size (must be < 32KiB) — HIST-007
 #   2. Cursor .mdc frontmatter lint (must have closing ---)
 #   3. No .cursorrules + .mdc dual-write conflict
 #   4. Staleness (rules repo newer than generated files)
-#   5. File existence (all expected files present)
+#   5. File existence (root AGENTS.override.md present, legacy paths absent)
 #   6. Core .mdc semantic validation (alwaysApply must be true)
 #   7. Skills deployment validation (manifest + directory integrity)
 #   8. Worktrees.json deployment validation
@@ -17,9 +17,12 @@ set -euo pipefail
 #  10. CC rules validation (.claude/rules/ frontmatter, when CC Mode != off)
 #  11. CC skills deployment validation (when CC Mode != off)
 #  12. CC/Cursor consistency (rules count, skills set match)
-#  13. Codex .codex/config.toml validation (when Codex Mode = native)
+#  13. Codex .codex/config.toml validation (child_agents_md, no fallback) — HIST-007
 #  14. Codex skills deployment validation (when Codex Mode = native)
 #  15. Codex/CC/Cursor skills consistency (when Codex Mode = native)
+#  16. OpenCode opencode.json validation (when OpenCode Mode = native) — HIST-006
+#  17. OpenCode skills deployment validation (when OpenCode Mode = native)
+#  18. OpenCode/CC/Cursor skills consistency (when OpenCode Mode = native)
 
 show_help() {
     cat <<'EOF'
@@ -38,11 +41,11 @@ ENVIRONMENT
     AGENT_TOOLKIT_HOME   Path to central rules repo (default: ~/.config/agent-toolkit)
 
 CHECKS PERFORMED
-    1. Codex AGENTS.md size (must be < 32KiB)
+    1. Codex AGENTS.override.md size (must be < 32KiB)
     2. Cursor .mdc frontmatter lint (must have closing ---)
     3. No .cursorrules + .mdc dual-write conflict
     4. Staleness detection (rules repo newer than generated files)
-    5. Generated file existence (CLAUDE.md, AGENTS.md, .mdc files)
+    5. Generated file existence (root AGENTS.override.md, legacy paths absent)
     6. Core .mdc alwaysApply validation (core rules must be always-on)
     7. Skills deployment validation (manifest + directory integrity)
     8. Worktrees.json deployment validation
@@ -53,6 +56,9 @@ CHECKS PERFORMED
    13. Codex .codex/config.toml validation (when Codex Mode = native)
    14. Codex skills deployment validation (when Codex Mode = native)
    15. Codex/CC/Cursor skills consistency (when Codex Mode = native)
+   16. OpenCode opencode.json validation (when OpenCode Mode = native)
+   17. OpenCode skills deployment validation (when OpenCode Mode = native)
+   18. OpenCode/CC/Cursor skills consistency (when OpenCode Mode = native)
 
 EXAMPLES
     agent-check                  # Check rules in current directory
@@ -107,30 +113,56 @@ if [ -f "$PROJECT_DIR/.agent-local.md" ]; then
     esac
 fi
 
+# --- Detect OpenCode Mode (HIST-006) ---
+# Two valid values: 'native' (default) and 'off'. Anything else falls back
+# to 'native' silently, mirroring the CC Mode behaviour.
+OPENCODE_MODE="native"
+if [ -f "$PROJECT_DIR/.agent-local.md" ]; then
+    _opencode_mode="$(sed -n 's/^\*\*OpenCode Mode\*\*:[[:space:]]*//p' "$PROJECT_DIR/.agent-local.md" | head -1 | sed 's/<!--.*-->//' | xargs)"
+    case "$_opencode_mode" in
+        off|native) OPENCODE_MODE="$_opencode_mode" ;;
+    esac
+fi
+
 TOTAL_CHECKS=9
+# Base offset for each optional block. Keeps per-check indices stable
+# regardless of which optional blocks run below (formerly the Codex block
+# assumed it was the last block and used $TOTAL_CHECKS-2 arithmetic; that
+# breaks once OpenCode checks sit after it).
+CODEX_BASE=9
+OPENCODE_BASE=9
 if [ "$CC_MODE" != "off" ]; then
-    TOTAL_CHECKS=12
+    TOTAL_CHECKS=$((TOTAL_CHECKS + 3))
+    CODEX_BASE=$((CODEX_BASE + 3))
+    OPENCODE_BASE=$((OPENCODE_BASE + 3))
 fi
 if [ "$CODEX_MODE" = "native" ]; then
     TOTAL_CHECKS=$((TOTAL_CHECKS + 3))
+    OPENCODE_BASE=$((OPENCODE_BASE + 3))
+fi
+if [ "$OPENCODE_MODE" = "native" ]; then
+    TOTAL_CHECKS=$((TOTAL_CHECKS + 3))
 fi
 
-# --- 1. Codex AGENTS.md size ---
+# --- 1. Codex AGENTS.override.md size ---
 
 echo ""
-# Codex size check is advisory — Codex is not the primary tool in this workflow
-echo "[1/$TOTAL_CHECKS] Codex AGENTS.md size limit (advisory)"
+# Codex size check is advisory — Codex is not the primary tool in this workflow.
+# HIST-007: file moved from .agent-rules/AGENTS.md to root AGENTS.override.md
+# so it is discovered natively without the project_doc_fallback_filenames
+# indirection.
+echo "[1/$TOTAL_CHECKS] Codex AGENTS.override.md size limit (advisory)"
 
-if [ -f "$PROJECT_DIR/.agent-rules/AGENTS.md" ]; then
-    SIZE=$(wc -c < "$PROJECT_DIR/.agent-rules/AGENTS.md" | tr -d ' ')
+if [ -f "$PROJECT_DIR/AGENTS.override.md" ]; then
+    SIZE=$(wc -c < "$PROJECT_DIR/AGENTS.override.md" | tr -d ' ')
     if [ "$SIZE" -gt 32768 ]; then
-        warn ".agent-rules/AGENTS.md is $SIZE bytes (> 32KiB). Codex may silently truncate."
+        warn "AGENTS.override.md is $SIZE bytes (> 32KiB). Codex may silently truncate."
     else
         PERCENT=$((SIZE * 100 / 32768))
-        pass ".agent-rules/AGENTS.md is $SIZE bytes (${PERCENT}% of 32KiB limit)"
+        pass "AGENTS.override.md is $SIZE bytes (${PERCENT}% of 32KiB limit)"
     fi
 else
-    warn ".agent-rules/AGENTS.md not found (Codex not in use)"
+    warn "AGENTS.override.md not found (Codex not in use)"
 fi
 
 # --- 2. Cursor frontmatter lint ---
@@ -222,27 +254,39 @@ echo "[5/$TOTAL_CHECKS] Generated file existence"
 # HIST-004: CLAUDE.md is no longer generated — we assert its absence so
 # upgrading projects that didn't run `agent-sync` yet get a clear fail
 # signal pointing at the decommission.
+# HIST-007: same treatment for the legacy .agent-rules/AGENTS.md path —
+# it should have been swept by `cleanup_remnants()` on the next sync.
 if [ -f "$PROJECT_DIR/.agent-rules/CLAUDE.md" ]; then
     fail ".agent-rules/CLAUDE.md present — run 'agent-sync' to purge (HIST-004 decommissioned CLAUDE.md)"
 else
     pass ".agent-rules/CLAUDE.md absent (HIST-004 — CLAUDE.md decommissioned)"
 fi
 
-# AGENTS.md required only when Codex mode is non-off.
+if [ -f "$PROJECT_DIR/.agent-rules/AGENTS.md" ]; then
+    fail ".agent-rules/AGENTS.md present — run 'agent-sync' to purge (HIST-007 — moved to root AGENTS.override.md)"
+else
+    pass ".agent-rules/AGENTS.md absent (HIST-007 — relocated to root AGENTS.override.md)"
+fi
+
+# AGENTS.override.md required only when Codex mode is non-off.
 local_agents_required=true
 [ "$CODEX_MODE" = "off" ] && local_agents_required=false
 
 if $local_agents_required; then
-    if [ -f "$PROJECT_DIR/.agent-rules/AGENTS.md" ]; then
-        pass ".agent-rules/AGENTS.md exists"
+    if [ -f "$PROJECT_DIR/AGENTS.override.md" ]; then
+        pass "AGENTS.override.md exists"
     else
-        warn ".agent-rules/AGENTS.md not found"
+        warn "AGENTS.override.md not found"
     fi
 else
-    pass ".agent-rules/AGENTS.md not required (Codex Mode: $CODEX_MODE)"
+    pass "AGENTS.override.md not required (Codex Mode: $CODEX_MODE)"
 fi
 
-# Warn if root-level remnants exist (Cursor would auto-inject these)
+# Warn if root-level remnants exist (Cursor would auto-inject these).
+# AGENTS.override.md is exempt: Cursor's auto-injection list only matches
+# AGENTS.md / CLAUDE.md by exact filename (verified 2026-04-25 against
+# Cursor docs at cursor.com/docs/context/rules — only AGENTS.md is listed
+# in the "AGENTS.md" / "Nested AGENTS.md support" sections).
 for f in CLAUDE.md AGENTS.md; do
     if [ -f "$PROJECT_DIR/$f" ]; then
         warn "Root-level $f exists — Cursor will auto-inject it, duplicating .mdc rules. Run agent-sync to clean up."
@@ -511,7 +555,7 @@ if [ "$CODEX_MODE" = "native" ]; then
 # --- 13. Codex config.toml validation ---
 
 echo ""
-echo "[$(($TOTAL_CHECKS - 2))/$TOTAL_CHECKS] Codex .codex/config.toml validation"
+echo "[$((CODEX_BASE + 1))/$TOTAL_CHECKS] Codex .codex/config.toml validation"
 
 if [ -f "$PROJECT_DIR/.codex/config.toml" ]; then
     # Validate TOML syntax
@@ -527,8 +571,9 @@ with open('$PROJECT_DIR/.codex/config.toml', 'rb') as f:
 " 2>/dev/null; then
             pass ".codex/config.toml is valid TOML"
         else
-            # Fallback: basic syntax check via grep
-            if grep -q 'project_doc_fallback_filenames' "$PROJECT_DIR/.codex/config.toml"; then
+            # Fallback: basic syntax check via grep — child_agents_md is the
+            # only flag agent-sync still writes post-HIST-007.
+            if grep -q 'child_agents_md' "$PROJECT_DIR/.codex/config.toml"; then
                 pass ".codex/config.toml exists (TOML validation unavailable — tomllib/tomli not installed)"
             else
                 fail ".codex/config.toml may be invalid TOML"
@@ -538,11 +583,18 @@ with open('$PROJECT_DIR/.codex/config.toml', 'rb') as f:
         pass ".codex/config.toml exists (python3 not available for TOML validation)"
     fi
 
-    # Check that fallback filenames include .agent-rules/AGENTS.md
-    if grep -q '\.agent-rules/AGENTS\.md' "$PROJECT_DIR/.codex/config.toml"; then
-        pass ".codex/config.toml references .agent-rules/AGENTS.md in fallback filenames"
+    # HIST-007: project_doc_fallback_filenames is no longer written. The
+    # only flag agent-sync now manages is `child_agents_md`. A stray
+    # fallback line typically means an old config survived a partial
+    # upgrade — surface it as a warn so the user re-runs `agent-sync`.
+    if grep -q 'child_agents_md' "$PROJECT_DIR/.codex/config.toml"; then
+        pass ".codex/config.toml has child_agents_md = true (sub-repo overlays enabled)"
     else
-        warn ".codex/config.toml does not reference .agent-rules/AGENTS.md — Codex may not find instructions"
+        warn ".codex/config.toml missing child_agents_md = true — sub-repo AGENTS.override.md will not load"
+    fi
+
+    if grep -q 'project_doc_fallback_filenames' "$PROJECT_DIR/.codex/config.toml"; then
+        warn "Stale 'project_doc_fallback_filenames' in .codex/config.toml (HIST-007 removed it). Re-run agent-sync."
     fi
 else
     fail ".codex/config.toml not found (Codex Mode: native)"
@@ -551,7 +603,7 @@ fi
 # --- 14. Codex skills validation ---
 
 echo ""
-echo "[$(($TOTAL_CHECKS - 1))/$TOTAL_CHECKS] Codex skills deployment validation"
+echo "[$((CODEX_BASE + 2))/$TOTAL_CHECKS] Codex skills deployment validation"
 
 CODEX_SKILLS_MF="$PROJECT_DIR/.agents/skills/.agent-sync-codex-skills-manifest"
 CODEX_HAS_SOURCE_SKILLS=false
@@ -589,7 +641,7 @@ fi
 # --- 15. Codex/CC/Cursor skills consistency ---
 
 echo ""
-echo "[$TOTAL_CHECKS/$TOTAL_CHECKS] Codex/CC/Cursor skills consistency"
+echo "[$((CODEX_BASE + 3))/$TOTAL_CHECKS] Codex/CC/Cursor skills consistency"
 
 # Re-declare the peer manifest paths locally — CC_SKILLS_MF / CURSOR_SKILLS_MF
 # are only set inside the CC_MODE != off block above, but this Codex block can
@@ -617,6 +669,125 @@ if [ -f "$CODEX_SKILLS_MF" ] && [ -f "$CODEX_CHECK_CC_SKILLS_MF" ]; then
 fi
 
 fi  # end CODEX_MODE = native
+
+# --- 16-18. OpenCode native checks (only when OpenCode Mode = native) ---
+# HIST-006: OpenCode parity with Cursor/CC/Codex. opencode.json is marker-
+# gated (see gen-opencode.sh) — absent marker = user-authored, which is
+# allowed; we only require the file to be valid JSON in that case.
+
+if [ "$OPENCODE_MODE" = "native" ]; then
+
+# --- 16. OpenCode opencode.json validation ---
+
+echo ""
+echo "[$((OPENCODE_BASE + 1))/$TOTAL_CHECKS] OpenCode opencode.json validation"
+
+OPENCODE_CONFIG="$PROJECT_DIR/opencode.json"
+if [ -f "$OPENCODE_CONFIG" ]; then
+    # Step 1: JSON syntax must parse regardless of ownership. A broken
+    # opencode.json silently disables OpenCode, so we always flag it.
+    if command -v python3 &>/dev/null; then
+        if python3 -c "import json; json.load(open('$OPENCODE_CONFIG'))" 2>/dev/null; then
+            pass "opencode.json is valid JSON"
+        else
+            fail "opencode.json is NOT valid JSON"
+        fi
+    elif command -v node &>/dev/null; then
+        if node -e "JSON.parse(require('fs').readFileSync('$OPENCODE_CONFIG','utf8'))" 2>/dev/null; then
+            pass "opencode.json is valid JSON (validated via node)"
+        else
+            fail "opencode.json is NOT valid JSON"
+        fi
+    else
+        warn "Cannot validate opencode.json syntax (neither python3 nor node available)"
+    fi
+
+    # Step 2: only agent-sync-owned files (carrying the sentinel marker)
+    # are expected to match the instructions globs we emit. User-authored
+    # files pass as-is.
+    if grep -q '"_generated_by": "agent-sync"' "$OPENCODE_CONFIG" 2>/dev/null; then
+        # instructions must at minimum reference .cursor/rules/*.mdc —
+        # that is the unconditional emitter (see generate_opencode_config).
+        if grep -q '\.cursor/rules/\*\.mdc' "$OPENCODE_CONFIG"; then
+            pass "opencode.json (agent-sync managed) references .cursor/rules/*.mdc"
+        else
+            fail "opencode.json (agent-sync managed) is missing .cursor/rules/*.mdc glob"
+        fi
+    else
+        pass "opencode.json exists (user-managed — not checked for agent-sync conventions)"
+    fi
+else
+    fail "opencode.json not found (OpenCode Mode: native)"
+fi
+
+# --- 17. OpenCode skills validation ---
+
+echo ""
+echo "[$((OPENCODE_BASE + 2))/$TOTAL_CHECKS] OpenCode skills deployment validation"
+
+OPENCODE_SKILLS_MF="$PROJECT_DIR/.opencode/skills/.agent-sync-skills-manifest"
+OPENCODE_HAS_SOURCE_SKILLS=false
+if [ -d "$RULES_HOME/skills" ] && [ "$(ls -d "$RULES_HOME/skills/"*/ 2>/dev/null)" ]; then
+    OPENCODE_HAS_SOURCE_SKILLS=true
+fi
+
+if $OPENCODE_HAS_SOURCE_SKILLS; then
+    if [ -f "$OPENCODE_SKILLS_MF" ]; then
+        OPENCODE_SKILLS_OK=true
+        OPENCODE_SKILLS_CHECKED=0
+        while IFS= read -r opencode_skill_name; do
+            [ -z "$opencode_skill_name" ] && continue
+            OPENCODE_SKILLS_CHECKED=$((OPENCODE_SKILLS_CHECKED + 1))
+            opencode_skill_dir="$PROJECT_DIR/.opencode/skills/$opencode_skill_name"
+            if [ -d "$opencode_skill_dir" ] && [ "$(ls -A "$opencode_skill_dir" 2>/dev/null)" ]; then
+                pass "OpenCode skill '$opencode_skill_name' deployed"
+            else
+                fail "OpenCode skill '$opencode_skill_name' listed in manifest but missing or empty"
+                OPENCODE_SKILLS_OK=false
+            fi
+        done < "$OPENCODE_SKILLS_MF"
+        if [ "$OPENCODE_SKILLS_CHECKED" -eq 0 ]; then
+            fail "OpenCode skills manifest exists but is empty. Run agent-sync."
+        elif $OPENCODE_SKILLS_OK; then
+            pass "All $OPENCODE_SKILLS_CHECKED OpenCode skills are deployed"
+        fi
+    else
+        fail "Rules repo has skills but OpenCode skills manifest not found. Run agent-sync."
+    fi
+else
+    pass "No skills in rules repo (OpenCode skills: nothing to validate)"
+fi
+
+# --- 18. OpenCode / CC / Cursor skills consistency ---
+
+echo ""
+echo "[$((OPENCODE_BASE + 3))/$TOTAL_CHECKS] OpenCode/CC/Cursor skills consistency"
+
+# Same defensive re-declaration pattern used in the Codex block: this
+# sub-block can run with CC_MODE=off + OpenCode=native, so CURSOR_SKILLS_MF
+# / CC_SKILLS_MF may be unset under set -u.
+OPENCODE_CHECK_CURSOR_SKILLS_MF="$PROJECT_DIR/.cursor/skills/.agent-sync-skills-manifest"
+OPENCODE_CHECK_CC_SKILLS_MF="$PROJECT_DIR/.claude/skills/.agent-sync-skills-manifest"
+if [ -f "$OPENCODE_SKILLS_MF" ] && [ -f "$OPENCODE_CHECK_CURSOR_SKILLS_MF" ]; then
+    OPENCODE_CHECK_CURSOR_SET=$(sort "$OPENCODE_CHECK_CURSOR_SKILLS_MF" | tr '\n' ',')
+    OPENCODE_CHECK_OPENCODE_SET=$(sort "$OPENCODE_SKILLS_MF" | tr '\n' ',')
+    if [ "$OPENCODE_CHECK_CURSOR_SET" = "$OPENCODE_CHECK_OPENCODE_SET" ]; then
+        pass "OpenCode and Cursor skill sets match"
+    else
+        warn "OpenCode and Cursor skill sets differ — check agent-sync output"
+    fi
+fi
+if [ -f "$OPENCODE_SKILLS_MF" ] && [ -f "$OPENCODE_CHECK_CC_SKILLS_MF" ]; then
+    OPENCODE_CHECK_CC_SET=$(sort "$OPENCODE_CHECK_CC_SKILLS_MF" | tr '\n' ',')
+    OPENCODE_CHECK_OPENCODE_SET_FOR_CC=$(sort "$OPENCODE_SKILLS_MF" | tr '\n' ',')
+    if [ "$OPENCODE_CHECK_CC_SET" = "$OPENCODE_CHECK_OPENCODE_SET_FOR_CC" ]; then
+        pass "OpenCode and CC skill sets match"
+    else
+        warn "OpenCode and CC skill sets differ — check agent-sync output"
+    fi
+fi
+
+fi  # end OPENCODE_MODE = native
 
 # --- Summary ---
 

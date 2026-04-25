@@ -1,0 +1,27 @@
+# Schema template — values are <...> placeholders.
+# TOML forbids plain-scalar placeholders, so non-string fields (bool / int /
+# float) are quoted here purely for schema uniformity and do NOT parse as
+# their real runtime type. Before use: unquote such fields to restore the
+# real type, e.g.  `enabled = "<true / false>"`  →  `enabled = true`.
+# 模板文件 — 所有 value 均为 <...> 占位符;TOML 语法不允许 plain 占位,
+# 因此布尔/整数等非字符串字段被包成字符串仅为保持 schema 风格统一,
+# 实际使用前需去掉 `"` 恢复原始类型。
+
+name = "<sub-agent-name>"
+description = "<WHAT the sub-agent does>. Use when <trigger scenarios>."
+developer_instructions = """
+<multi-line instructions guiding sub-agent behavior,
+priorities, and focus areas>
+"""
+nickname_candidates = ["<nickname-1>", "<nickname-2>", "..."]
+model = "<gpt-5.4 / model-id>"
+model_reasoning_effort = "<minimal / low / medium / high / xhigh>"
+sandbox_mode = "<read-only / workspace-write / danger-full-access>"
+
+[mcp_servers."<server-id>"]
+command = "<executable>"
+args = ["<arg1>", "<arg2>"]
+
+[[skills.config]]
+path = "<path/to/skill/SKILL.md or skill folder>"
+enabled = "<true / false>"

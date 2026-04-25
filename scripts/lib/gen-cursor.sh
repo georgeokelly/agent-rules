@@ -10,7 +10,7 @@ generate_cursor() {
     # removal is safe and non-destructive for fresh projects where the file
     # never existed.
     rm -f "$PROJECT_DIR/.cursor/rules/30-review-criteria.mdc" 2>/dev/null || true
-    local frontmatter_dir="$RULES_HOME/templates/cursor-frontmatter"
+    local frontmatter_dir="$RULES_HOME/templates/rule_templates/cursor_frontmatter"
 
     local rule_file basename_no_ext lookup_name target
     for rule_file in "$RULES_HOME"/core/*.md "$RULES_HOME"/packs/*.md; do
@@ -51,6 +51,19 @@ generate_cursor() {
 
 generate_skills() {
     deploy_artifacts "$RULES_HOME/skills" "$PROJECT_DIR/.cursor/skills" "$SKILLS_MANIFEST" "Skills"
+}
+
+# Cursor subagents (HIST-006, skeleton). Source:
+#   $RULES_HOME/subagents/cursor/<name>.md        (core)
+#   $RULES_HOME/extras/<bundle>/subagents/cursor/<name>.md  (optional)
+# Target: $PROJECT_DIR/.cursor/agents/<prefix><name>.md
+#
+# deploy_subagent_files is a no-op when both sources are empty/missing,
+# so this is safe to call on every full sync even before any Cursor
+# subagent files exist in the repo. When files are eventually authored,
+# they deploy without any further changes to agent-sync.
+generate_cursor_subagents() {
+    deploy_subagent_files "$RULES_HOME/subagents/cursor" "$PROJECT_DIR/.cursor/agents" "$CURSOR_SUBAGENTS_MANIFEST" "Cursor Subagents"
 }
 
 # --- Worktrees deployment ---

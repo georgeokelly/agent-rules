@@ -1,0 +1,13 @@
+{
+    "$schema": "https://opencode.ai/config.json",
+    "instructions": [
+        ".cursor/rules/*.mdc",
+        ".claude/rules/*.md",
+        "<path/to/project-specific-standards.md>"
+    ],
+    "permission": {
+        "skill": {
+            "*": "allow"
+        }
+    }
+}

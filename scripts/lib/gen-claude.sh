@@ -8,12 +8,12 @@
 # Generate CC-native .claude/rules/*.md files.
 # Rule categories:
 #   A (always-on): core rules — no frontmatter in CC (always loaded)
-#   B (path-scoped): packs with globs — CC uses globs: from cc-frontmatter/
+#   B (path-scoped): packs with globs — CC uses globs: from rule_templates/cc_frontmatter/
 #   C (description-only): packs with only description — always-on in CC
 generate_cc_rules() {
     mkdir -p "$PROJECT_DIR/.claude/rules"
 
-    local cc_fm_dir="$RULES_HOME/templates/cc-frontmatter"
+    local cc_fm_dir="$RULES_HOME/templates/rule_templates/cc_frontmatter"
     local manifest_new="${CC_RULES_MANIFEST}.new"
     : > "$manifest_new"
 
@@ -66,4 +66,16 @@ generate_cc_rules() {
 
 generate_cc_skills() {
     deploy_artifacts "$RULES_HOME/skills" "$PROJECT_DIR/.claude/skills" "$CC_SKILLS_MANIFEST" "CC Skills"
+}
+
+# CC subagents (HIST-006, skeleton). Source:
+#   $RULES_HOME/subagents/cc/<name>.md            (core)
+#   $RULES_HOME/extras/<bundle>/subagents/cc/<name>.md  (optional)
+# Target: $PROJECT_DIR/.claude/agents/<prefix><name>.md
+#
+# Claude Code's native subagent path is `.claude/agents/`. deploy_subagent_files
+# is a no-op on empty source, so this is safe to wire before any CC subagent
+# files exist in the repo.
+generate_cc_subagents() {
+    deploy_subagent_files "$RULES_HOME/subagents/cc" "$PROJECT_DIR/.claude/agents" "$CC_SUBAGENTS_MANIFEST" "CC Subagents"
 }

@@ -80,7 +80,7 @@ new_project() {
 }
 
 write_overlay() {
-    local dir="$1" cc_mode="${2:-native}" codex_mode="${3:-native}"
+    local dir="$1" cc_mode="${2:-native}" codex_mode="${3:-native}" opencode_mode="${4:-native}"
     cat > "$dir/.agent-local.md" <<EOF
 # Project Overlay
 
@@ -96,6 +96,7 @@ write_overlay() {
 
 **CC Mode**: $cc_mode
 **Codex Mode**: $codex_mode
+**OpenCode Mode**: $opencode_mode
 
 ## Build & Test Commands
 
@@ -126,8 +127,14 @@ assert ".claude/rules/ exists"         test -d "$P1/.claude/rules"
 assert ".claude/rules/ has .md"        test -n "$(ls "$P1/.claude/rules/"*.md 2>/dev/null)"
 assert ".claude/skills/ exists"        test -d "$P1/.claude/skills"
 assert "No CLAUDE.md (HIST-004)"       test ! -f "$P1/.agent-rules/CLAUDE.md"
-assert "AGENTS.md exists"              test -f "$P1/.agent-rules/AGENTS.md"
+# HIST-007: root AGENTS.override.md is the new Codex entry point;
+# .agent-rules/ should be wiped on every sync.
+assert "AGENTS.override.md exists"     test -f "$P1/AGENTS.override.md"
+assert "No legacy .agent-rules/AGENTS.md"   test ! -f "$P1/.agent-rules/AGENTS.md"
+assert "No legacy .agent-rules/ dir"        test ! -d "$P1/.agent-rules"
 assert ".codex/config.toml exists"     test -f "$P1/.codex/config.toml"
+assert ".codex/config.toml has child_agents_md"   grep -q 'child_agents_md = true' "$P1/.codex/config.toml"
+assert ".codex/config.toml no fallback_filenames" bash -c "! grep -q 'project_doc_fallback_filenames' '$P1/.codex/config.toml'"
 assert ".agents/skills/ exists"        test -d "$P1/.agents/skills"
 assert ".cursor/skills/ exists"        test -d "$P1/.cursor/skills"
 assert "No root CLAUDE.md"             test ! -f "$P1/CLAUDE.md"
@@ -188,7 +195,7 @@ write_overlay "$P1" "off" "native"
 
 assert ".claude/rules/ gone"            test ! -d "$P1/.claude/rules"
 assert ".codex/config.toml preserved"   test -f "$P1/.codex/config.toml"
-assert "AGENTS.md preserved"            test -f "$P1/.agent-rules/AGENTS.md"
+assert "AGENTS.override.md preserved"   test -f "$P1/AGENTS.override.md"
 assert "agent-check passes"             "$AGENT_CHECK" "$P1"
 
 # ===== T5: Codex Mode=off → .codex/ + AGENTS.md cleaned =====
@@ -203,7 +210,8 @@ write_overlay "$P1" "dual" "off"
 
 assert ".codex/config.toml gone" test ! -f "$P1/.codex/config.toml"
 assert ".agents/ gone"           test ! -d "$P1/.agents/skills"
-assert "AGENTS.md gone"          test ! -f "$P1/.agent-rules/AGENTS.md"
+assert "AGENTS.override.md gone" test ! -f "$P1/AGENTS.override.md"
+assert "No legacy AGENTS.md"     test ! -f "$P1/.agent-rules/AGENTS.md"
 assert "No CLAUDE.md (HIST-004)" test ! -f "$P1/.agent-rules/CLAUDE.md"
 assert ".claude/rules/ restored" test -d "$P1/.claude/rules"
 assert "agent-check passes"      "$AGENT_CHECK" "$P1"
@@ -217,7 +225,10 @@ write_overlay "$P1" "native" "legacy"
 
 assert "No .codex/config.toml" test ! -f "$P1/.codex/config.toml"
 assert "No .agents/skills/"    test ! -d "$P1/.agents/skills"
-assert "AGENTS.md exists"      test -f "$P1/.agent-rules/AGENTS.md"
+# HIST-007: Codex Mode=legacy still produces the AGENTS body, just at the
+# new root location instead of .agent-rules/.
+assert "AGENTS.override.md exists" test -f "$P1/AGENTS.override.md"
+assert "No legacy AGENTS.md"   test ! -f "$P1/.agent-rules/AGENTS.md"
 assert "No CLAUDE.md (HIST-004)" test ! -f "$P1/.agent-rules/CLAUDE.md"
 assert "agent-check passes"    "$AGENT_CHECK" "$P1"
 
@@ -231,7 +242,8 @@ write_overlay "$P7" "native" "off"
 
 assert ".claude/rules/ exists"  test -d "$P7/.claude/rules"
 assert "No CLAUDE.md"           test ! -f "$P7/.agent-rules/CLAUDE.md"
-assert "No AGENTS.md"           test ! -f "$P7/.agent-rules/AGENTS.md"
+assert "No legacy AGENTS.md"    test ! -f "$P7/.agent-rules/AGENTS.md"
+assert "No root AGENTS.override.md" test ! -f "$P7/AGENTS.override.md"
 assert "No .codex/"             test ! -d "$P7/.codex"
 assert "agent-check passes"     "$AGENT_CHECK" "$P7"
 
@@ -245,10 +257,14 @@ mkdir -p "$P8/libs/core"
 printf '# Sub-repo overlay for libs/core\n' > "$P8/libs/core/.agent-local.md"
 "$AGENT_SYNC" "$P8" >/dev/null 2>&1 || true
 
-# HIST-004: sub-repo CLAUDE.md is no longer produced — only AGENTS.md (for
-# Codex), Cursor .mdc, and .claude/rules/*-overlay.md.
+# HIST-004: sub-repo CLAUDE.md is no longer produced.
+# HIST-007: sub-repo overlay file renamed to AGENTS.override.md so Cursor
+# (which auto-injects nested AGENTS.md but not AGENTS.override.md) does
+# not duplicate the same content already arriving via the
+# .cursor/rules/libs-core-overlay.mdc path.
 assert "No sub-repo CLAUDE.md (HIST-004)" test ! -f "$P8/libs/core/CLAUDE.md"
-assert "Sub-repo AGENTS.md"        test -f "$P8/libs/core/AGENTS.md"
+assert "No sub-repo AGENTS.md (HIST-007)" test ! -f "$P8/libs/core/AGENTS.md"
+assert "Sub-repo AGENTS.override.md"      test -f "$P8/libs/core/AGENTS.override.md"
 assert "Sub-repo Cursor .mdc"      test -f "$P8/.cursor/rules/libs-core-overlay.mdc"
 assert "Sub-repo CC overlay .md"   test -f "$P8/.claude/rules/libs-core-overlay.md"
 assert "agent-check passes"        "$AGENT_CHECK" "$P8"
@@ -260,10 +276,10 @@ rm "$P8/libs/core/.agent-local.md"
 rm -f "$P8/.agent-sync-hash"
 "$AGENT_SYNC" "$P8" >/dev/null 2>&1 || true
 
-# The ghost cleanup path still wipes sub-repo CLAUDE.md even though HIST-004
-# stopped emitting it — this covers pre-HIST-004 deployments that still have
-# stale CLAUDE.md in sub-dirs when their overlay gets removed.
-assert "Ghost AGENTS.md removed"      test ! -f "$P8/libs/core/AGENTS.md"
+# Ghost cleanup wipes the new override.md target plus pre-HIST-007
+# AGENTS.md and pre-HIST-004 CLAUDE.md (upgrade compat).
+assert "Ghost AGENTS.override.md removed" test ! -f "$P8/libs/core/AGENTS.override.md"
+assert "Ghost legacy AGENTS.md removed"   test ! -f "$P8/libs/core/AGENTS.md"
 assert "Ghost .mdc removed"           test ! -f "$P8/.cursor/rules/libs-core-overlay.mdc"
 assert "Ghost CC overlay removed"     test ! -f "$P8/.claude/rules/libs-core-overlay.md"
 
@@ -435,7 +451,8 @@ T16_OUT=$("$AGENT_SYNC" "$P16" 2>&1 || true)
 
 assert_output_match "DEPRECATED warning printed" "DEPRECATED: CC Mode 'dual'" "$T16_OUT"
 assert "dual alias did not emit CLAUDE.md"  test ! -f "$P16/.agent-rules/CLAUDE.md"
-assert "AGENTS.md still produced"           test -f "$P16/.agent-rules/AGENTS.md"
+# HIST-007: AGENTS body now lives at root AGENTS.override.md.
+assert "AGENTS.override.md still produced"  test -f "$P16/AGENTS.override.md"
 assert ".claude/rules/ produced"            test -d "$P16/.claude/rules"
 assert "agent-check passes"                 "$AGENT_CHECK" "$P16"
 
@@ -461,8 +478,11 @@ rm -f "$P17/.agent-sync-hash"
 
 assert "Legacy root CLAUDE.md swept"    test ! -f "$P17/.agent-rules/CLAUDE.md"
 assert "Legacy sub-repo CLAUDE.md swept" test ! -f "$P17/libs/core/CLAUDE.md"
-assert "AGENTS.md still produced"        test -f "$P17/.agent-rules/AGENTS.md"
-assert "Sub-repo AGENTS.md still produced" test -f "$P17/libs/core/AGENTS.md"
+# HIST-007: post-cleanup, AGENTS body lives at root, not .agent-rules/.
+assert "Root AGENTS.override.md produced"     test -f "$P17/AGENTS.override.md"
+assert "No legacy .agent-rules/AGENTS.md"     test ! -f "$P17/.agent-rules/AGENTS.md"
+assert "Sub-repo AGENTS.override.md produced" test -f "$P17/libs/core/AGENTS.override.md"
+assert "No sub-repo legacy AGENTS.md"         test ! -f "$P17/libs/core/AGENTS.md"
 
 # ===== T18: HIST-004 — 'agent-sync claude' subcommand rejected =====
 # The removed subcommand must print a loud HIST-004 error and exit non-zero
@@ -480,6 +500,7 @@ T18_EXIT=0
 assert_output_match "HIST-004 error printed" "removed in HIST-004" "$T18_OUT"
 assert "claude subcommand exits non-zero"    test "$T18_EXIT" -ne 0
 assert "claude subcommand did not mutate P18" test ! -f "$P18/.agent-rules/CLAUDE.md"
+assert "claude subcommand did not write AGENTS.override.md" test ! -f "$P18/AGENTS.override.md"
 
 # ===== T19: HIST-005 — Skill prefixing (namespace for agent-toolkit skills) =====
 # Scheme B: every deployed skill — core and extras — gets $SKILL_PREFIX applied
@@ -555,6 +576,210 @@ rm -f "$P19E/.agent-sync-hash"  # force re-sync (overlay-only change)
 
 assert "T19e: Switched to myproj- dir"            test -d "$P19E/.cursor/skills/myproj-pre-commit"
 assert "T19e: Stale gla- dir removed"             test ! -d "$P19E/.cursor/skills/gla-pre-commit"
+
+# ===== T20: HIST-006 — OpenCode Mode=native full sync =====
+# Default OpenCode Mode is 'native'. A full sync must produce a marker-gated
+# opencode.json at project root, plus .opencode/skills/ and .opencode/agent/.
+# Subagent source directories are empty upstream, so .opencode/agent/ should
+# only be created when deploy_subagent_files has something to emit — test
+# accordingly (no assertion that the dir exists unconditionally).
+
+echo ""
+echo "=== T20: OpenCode Mode=native full sync (HIST-006) ==="
+P20="$(new_project)"
+write_overlay "$P20"
+"$AGENT_SYNC" "$P20" >/dev/null 2>&1 || true
+
+assert "T20: opencode.json exists"               test -f "$P20/opencode.json"
+assert "T20: opencode.json has marker"           grep -q '"_generated_by": "agent-sync"' "$P20/opencode.json"
+assert "T20: opencode.json references Cursor"    grep -q '\.cursor/rules/\*\.mdc' "$P20/opencode.json"
+assert "T20: opencode.json references CC rules"  grep -q '\.claude/rules/\*\.md' "$P20/opencode.json"
+assert "T20: OpenCode skills dir exists"         test -d "$P20/.opencode/skills"
+assert "T20: OpenCode skill gla-pre-commit"      test -d "$P20/.opencode/skills/gla-pre-commit"
+assert "T20: OpenCode skill gla-simple-review"   test -d "$P20/.opencode/skills/gla-simple-review"
+assert "T20: OpenCode skill manifest exists"     test -f "$P20/.opencode/skills/.agent-sync-skills-manifest"
+assert "T20: OpenCode skill frontmatter prefixed" grep -q '^name: gla-pre-commit' "$P20/.opencode/skills/gla-pre-commit/SKILL.md"
+assert "T20: agent-check passes"                 "$AGENT_CHECK" "$P20"
+
+# ===== T21: HIST-006 — OpenCode Mode=off reconcile =====
+# Flipping to 'off' must remove the marker-gated opencode.json and clear
+# .opencode/skills + .opencode/agent. Staleness hash must invalidate so the
+# next sync executes (we don't gate on hash here because overlay change is
+# hash-tracked).
+
+echo ""
+echo "=== T21: OpenCode Mode=off (reconcile removes outputs) ==="
+P21="$(new_project)"
+write_overlay "$P21"
+"$AGENT_SYNC" "$P21" >/dev/null 2>&1 || true
+# sanity: baseline present
+test -f "$P21/opencode.json" || fail "T21: baseline opencode.json missing"
+
+write_overlay "$P21" "native" "native" "off"
+"$AGENT_SYNC" "$P21" >/dev/null 2>&1 || true
+
+assert "T21: opencode.json removed"              test ! -f "$P21/opencode.json"
+assert "T21: .opencode/ fully removed"           test ! -d "$P21/.opencode"
+assert "T21: Cursor / CC outputs preserved"      test -d "$P21/.cursor/rules" -a -d "$P21/.claude/rules"
+assert "T21: agent-check passes"                 "$AGENT_CHECK" "$P21"
+
+# ===== T22: HIST-006 — user-authored opencode.json preserved =====
+# Marker-gated ownership: if opencode.json exists without the sentinel,
+# agent-sync must NOT overwrite it, and agent-check must still pass as
+# long as the JSON parses. No attempt to infer agent-sync conventions.
+
+echo ""
+echo "=== T22: User-authored opencode.json preserved ==="
+P22="$(new_project)"
+write_overlay "$P22"
+# Plant a user-authored opencode.json BEFORE the first sync.
+cat > "$P22/opencode.json" <<'JSON'
+{
+    "$schema": "https://opencode.ai/config.json",
+    "instructions": ["CUSTOM.md"],
+    "permission": {
+        "skill": {"*": "deny"}
+    }
+}
+JSON
+USER_HASH_BEFORE=$(shasum "$P22/opencode.json" | awk '{print $1}')
+"$AGENT_SYNC" "$P22" >/dev/null 2>&1 || true
+USER_HASH_AFTER=$(shasum "$P22/opencode.json" | awk '{print $1}')
+
+assert "T22: User opencode.json bytes unchanged" test "$USER_HASH_BEFORE" = "$USER_HASH_AFTER"
+assert "T22: User opencode.json has no marker"   bash -c "! grep -q '_generated_by' '$P22/opencode.json'"
+assert "T22: agent-check still passes"           "$AGENT_CHECK" "$P22"
+
+# ===== T23: HIST-006 — skill prefix narrows permission.skill allow =====
+# With a custom prefix, opencode.json must emit a narrowed allow
+# ("myproj-*": "allow") plus a fallback ("*": "ask") — bare prefix-less
+# skills stay behind a prompt so unrelated user-installed skills don't get
+# a free pass from agent-toolkit's wildcard.
+
+echo ""
+echo "=== T23: Custom skill prefix → narrowed OpenCode permission.skill ==="
+P23="$(new_project)"
+write_overlay "$P23"
+# Inject '**Skill Prefix**: myproj' like T19c.
+awk '{print} /^\*\*Codex Mode\*\*:/ && !done {print "**Skill Prefix**: myproj"; done=1}' \
+    "$P23/.agent-local.md" > "$P23/.agent-local.md.new"
+mv "$P23/.agent-local.md.new" "$P23/.agent-local.md"
+"$AGENT_SYNC" "$P23" >/dev/null 2>&1 || true
+
+assert "T23: opencode.json exists"               test -f "$P23/opencode.json"
+assert "T23: narrowed allow for myproj-*"        grep -q '"myproj-\*": "allow"' "$P23/opencode.json"
+assert "T23: fallback ask for *"                 grep -q '"\*": "ask"' "$P23/opencode.json"
+# Inverse: with 'none' opt-out, the wildcard allow must remain.
+P23B="$(new_project)"
+write_overlay "$P23B"
+awk '{print} /^\*\*Codex Mode\*\*:/ && !done {print "**Skill Prefix**: none"; done=1}' \
+    "$P23B/.agent-local.md" > "$P23B/.agent-local.md.new"
+mv "$P23B/.agent-local.md.new" "$P23B/.agent-local.md"
+"$AGENT_SYNC" "$P23B" >/dev/null 2>&1 || true
+assert "T23: wildcard allow preserved on opt-out" grep -q '"\*": "allow"' "$P23B/opencode.json"
+
+# ===== T24: HIST-006 — explicit OpenCode subcommands =====
+# agent-sync opencode: runs config + skills + subagents together.
+# agent-sync opencode-config: only emits opencode.json.
+# agent-sync opencode-skills: only deploys skills.
+# agent-sync opencode-subagents: no-op when subagents/opencode/ is empty
+#                                (the current state), but still exits 0.
+# agent-sync subagents: umbrella command, no-op on all tools currently.
+
+echo ""
+echo "=== T24: Explicit OpenCode subcommands ==="
+P24="$(new_project)"
+write_overlay "$P24"
+"$AGENT_SYNC" opencode-config "$P24" >/dev/null 2>&1 || true
+assert "T24: opencode-config only wrote JSON"         test -f "$P24/opencode.json"
+assert "T24: opencode-config did not write skills"    test ! -d "$P24/.opencode/skills"
+
+P24B="$(new_project)"
+write_overlay "$P24B"
+"$AGENT_SYNC" opencode-skills "$P24B" >/dev/null 2>&1 || true
+assert "T24b: opencode-skills wrote .opencode/skills" test -d "$P24B/.opencode/skills/gla-pre-commit"
+assert "T24b: opencode-skills did not write JSON"     test ! -f "$P24B/opencode.json"
+
+# Umbrella subagents target — must succeed with exit 0 even though no
+# subagents/<tool>/ source directory is populated upstream. Idempotent
+# no-op is the expected behaviour per deploy_subagent_files design.
+P24C="$(new_project)"
+write_overlay "$P24C"
+SUBAGENTS_EXIT=0
+"$AGENT_SYNC" subagents "$P24C" >/dev/null 2>&1 || SUBAGENTS_EXIT=$?
+assert "T24c: subagents umbrella exits 0"             test "$SUBAGENTS_EXIT" -eq 0
+
+# opencode subcommand with Mode=off must be a polite no-op (exit 0 with warning).
+P24D="$(new_project)"
+write_overlay "$P24D" "native" "native" "off"
+T24D_OUT=$("$AGENT_SYNC" opencode "$P24D" 2>&1 || true)
+T24D_EXIT=0
+"$AGENT_SYNC" opencode "$P24D" >/dev/null 2>&1 || T24D_EXIT=$?
+assert "T24d: opencode+off exits 0"                   test "$T24D_EXIT" -eq 0
+assert_output_match "T24d: opencode+off warns" "OpenCode Mode is 'off'" "$T24D_OUT"
+assert "T24d: opencode+off did not create config"     test ! -f "$P24D/opencode.json"
+
+# ===== T25: HIST-007 — AGENTS.override.md root entry + sub-repo override =====
+# Validates the four pillars of HIST-007:
+#   a) root AGENTS.override.md produced and contains real rule content
+#   b) .agent-rules/ directory removed (legacy path swept)
+#   c) .codex/config.toml carries child_agents_md but NOT
+#      project_doc_fallback_filenames (HIST-007 simplification)
+#   d) sub-repo AGENTS.override.md exists and AGENTS.md does NOT
+#      (eliminates Cursor nested-AGENTS.md double injection)
+#   e) end-to-end upgrade: pre-HIST-007 .agent-rules/AGENTS.md +
+#      sub-repo AGENTS.md planted manually are both swept on next sync
+
+echo ""
+echo "=== T25a: HIST-007 root AGENTS.override.md ==="
+P25="$(new_project)"
+write_overlay "$P25" "native" "native"
+mkdir -p "$P25/libs/core"
+printf '# Sub-repo overlay\n' > "$P25/libs/core/.agent-local.md"
+"$AGENT_SYNC" "$P25" >/dev/null 2>&1 || true
+
+assert "T25a: root AGENTS.override.md exists"         test -f "$P25/AGENTS.override.md"
+# Real rule content check — at least one core rule heading must be present.
+assert "T25a: AGENTS.override.md contains core rules" grep -q 'Communication\|Workflow\|Quality' "$P25/AGENTS.override.md"
+assert "T25a: AGENTS.override.md has agent-sync header" grep -q '<!-- Auto-generated by agent-sync' "$P25/AGENTS.override.md"
+
+echo ""
+echo "=== T25b: HIST-007 .agent-rules/ legacy dir removed ==="
+assert "T25b: no .agent-rules/ dir"                   test ! -d "$P25/.agent-rules"
+assert "T25b: no .agent-rules/AGENTS.md"              test ! -f "$P25/.agent-rules/AGENTS.md"
+
+echo ""
+echo "=== T25c: HIST-007 .codex/config.toml simplified ==="
+assert "T25c: config.toml has child_agents_md"        grep -q 'child_agents_md = true' "$P25/.codex/config.toml"
+assert "T25c: config.toml NO fallback_filenames"      bash -c "! grep -q 'project_doc_fallback_filenames' '$P25/.codex/config.toml'"
+
+echo ""
+echo "=== T25d: HIST-007 sub-repo AGENTS.override.md ==="
+assert "T25d: sub-repo AGENTS.override.md exists"     test -f "$P25/libs/core/AGENTS.override.md"
+assert "T25d: sub-repo AGENTS.md absent"              test ! -f "$P25/libs/core/AGENTS.md"
+assert "T25d: agent-check passes"                     "$AGENT_CHECK" "$P25"
+
+echo ""
+echo "=== T25e: HIST-007 upgrade path (legacy artifacts swept) ==="
+P25E="$(new_project)"
+write_overlay "$P25E" "native" "native"
+mkdir -p "$P25E/libs/core"
+printf '# Sub-repo overlay\n' > "$P25E/libs/core/.agent-local.md"
+# Plant pre-HIST-007 artifacts BEFORE the first sync so the cleanup pass
+# walks them. Mark with the auto-generated header so the orphan scanner
+# in `agent-sync clean` would also recognize them as agent-sync-owned.
+mkdir -p "$P25E/.agent-rules"
+printf '<!-- Auto-generated by agent-sync. Do not edit manually. -->\n# legacy root\n' \
+    > "$P25E/.agent-rules/AGENTS.md"
+printf '<!-- Auto-generated by agent-sync (sub-repo overlay only). -->\n# legacy sub\n' \
+    > "$P25E/libs/core/AGENTS.md"
+"$AGENT_SYNC" "$P25E" >/dev/null 2>&1 || true
+
+assert "T25e: legacy .agent-rules/AGENTS.md swept"    test ! -f "$P25E/.agent-rules/AGENTS.md"
+assert "T25e: legacy .agent-rules/ rmdir'd"           test ! -d "$P25E/.agent-rules"
+assert "T25e: legacy sub-repo AGENTS.md swept"        test ! -f "$P25E/libs/core/AGENTS.md"
+assert "T25e: new root AGENTS.override.md produced"   test -f "$P25E/AGENTS.override.md"
+assert "T25e: new sub-repo AGENTS.override.md"        test -f "$P25E/libs/core/AGENTS.override.md"
 
 # ===== Summary =====
 

@@ -1,0 +1,38 @@
+name: <sub-agent-name>
+description: <WHAT the sub-agent does>. Use when <trigger scenarios>.
+tools: <comma-separated tool allowlist: Read, Grep, Glob, Bash, ...>
+disallowedTools: <comma-separated tool denylist: WebFetch, ...>
+model: <sonnet / opus / haiku / model-id / inherit>
+permissionMode: <default / acceptEdits / auto / dontAsk / bypassPermissions / plan>
+maxTurns: <integer turn limit>
+skills:
+  - <skill-name>
+  - <skill-name>
+  - ...
+mcpServers:
+  - <server-name>                              # String reference to a configured MCP server
+  - <server-name>:                             # Inline definition, schema is same as .mcp.json
+      type: <stdio / http / sse / ws>
+      command: <executable>
+      args: ["<arg1>", "<arg2>", ...]
+hooks:
+  PreToolUse:
+    - matcher: "<tool-name / *>"
+      hooks:
+        - type: command
+          command: "<path/to/script>"
+  PostToolUse:
+    - matcher: "<tool-name / *>"
+      hooks:
+        - type: command
+          command: "<path/to/script>"
+  Stop:
+    - hooks:
+        - type: command
+          command: "<path/to/script>"
+memory: <user / project / local>
+background: <true / false>
+effort: <low / medium / high / xhigh / max>
+isolation: worktree                           # Omit this field unless you want a temporary git worktree.
+color: <red / blue / green / yellow / purple / orange / pink / cyan>
+initialPrompt: "<first user turn when run as main session agent via --agent or agent setting>"

@@ -1,6 +1,20 @@
 ---
+# Spec (required)
 name: project-overlay
 description: Create or update project-specific AI configuration (.agent-local.md) through guided conversation. Use when the user wants to create overlay, init project, setup agent rules, 创建项目配置, 初始化规则, update overlay, 更新项目配置, or when .agent-local.md is missing or outdated.
+
+# Spec (optional)
+license: MIT
+compatibility: Designed for Cursor (agent mode). Requires access to the project filesystem and $AGENT_TOOLKIT_HOME templates directory.
+metadata:
+  author: georgel
+  version: "1.2"
+
+# Spec (experimental)
+# allowed-tools: Bash(git add *) Bash(git commit *) Read  # support claude only
+disable-model-invocation: true                          # support cursor + claude
+
+# Spec (claude-only)
 when_to_use: >-
   Trigger when (a) the user explicitly asks to create/update/refresh an
   `.agent-local.md` overlay for the current project or a sub-repo, (b) the
@@ -10,11 +24,20 @@ when_to_use: >-
   contradicts the recorded `Project Structure`, or references to deleted/
   renamed directories. For the passive case, propose the Update Flow rather
   than silently editing the file.
-compatibility: Designed for Cursor (agent mode). Requires access to the project filesystem and $AGENT_TOOLKIT_HOME templates directory.
-disable-model-invocation: true
-metadata:
-  author: georgel
-  version: "1.2"
+# argument-hint: "[issue-number] [branch]"
+# arguments: [issue, branch]
+# user-invocable: true
+# model: sonnet        # sonnet / opus / haiku / id / inherit
+# effort: medium       # low / medium / high / xhigh / max
+# context: fork        # When forking, run the body in an independent subagent context
+# agent: general-purpose
+# hooks:
+#   PreToolUse: ./hooks/<pre.sh>
+#   PostToolUse: ./hooks/<post.sh>
+#   Stop: ./hooks/<stop.sh>
+# paths:
+#   - "src/**/*.ts"
+# shell: bash          # bash / powershell
 ---
 
 # Project Overlay
@@ -72,5 +95,6 @@ metadata:
 `.agent-local.md` 通过 `agent-sync` 编译为多个工具的规则：
 
 - **Cursor**: `.cursor/rules/project-overlay.mdc`（alwaysApply: true）
-- **Claude Code**: `.agent-rules/CLAUDE.md`（拼接到末尾）
-- **Codex**: `.agent-rules/AGENTS.md`（与 CLAUDE.md 相同）
+- **Claude Code**: `.claude/rules/*.md`（HIST-004 起原生 per-file，不再生成 monolithic CLAUDE.md）
+- **Codex**: 项目根 `AGENTS.override.md`（HIST-007 起 Codex 专属入口，Cursor 不会自动注入）
+- **OpenCode**: `opencode.json` + `.opencode/skills/`（HIST-006）

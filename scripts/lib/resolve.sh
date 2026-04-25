@@ -120,6 +120,29 @@ resolve_codex_mode() {
     echo "  Codex Mode: $CODEX_MODE"
 }
 
+# --- OpenCode Mode resolution (HIST-006) ---
+# OpenCode integrates as a fourth native tool. Modes:
+#   off    — no opencode.json, no .opencode/ output
+#   native — opencode.json at project root + optional .opencode/skills/ +
+#            optional .opencode/agent/ (subagents). Default, because the
+#            generated opencode.json reuses existing .cursor/rules/ and
+#            .claude/rules/ paths — it is zero-cost on projects that don't
+#            use OpenCode (ignored) and fully wired for projects that do.
+OPENCODE_MODE="native"
+
+resolve_opencode_mode() {
+    if [ -f "$PROJECT_DIR/.agent-local.md" ]; then
+        local mode
+        mode="$(sed -n 's/^\*\*OpenCode Mode\*\*:[[:space:]]*//p' "$PROJECT_DIR/.agent-local.md" | head -1 | sed 's/<!--.*-->//' | xargs)"
+        case "$mode" in
+            off|native) OPENCODE_MODE="$mode" ;;
+            "") OPENCODE_MODE="native" ;;
+            *) _warn "  WARNING: Unknown OpenCode Mode '$mode'. Defaulting to 'native'."; OPENCODE_MODE="native" ;;
+        esac
+    fi
+    echo "  OpenCode Mode: $OPENCODE_MODE"
+}
+
 # --- Staleness check (full sync only) ---
 
 CURRENT_HASH=""
@@ -137,7 +160,11 @@ check_staleness() {
         sub_hash="$(git -C "$RULES_HOME" submodule status 2>/dev/null | awk '{print $1}' | tr -d '+-U' | sort | tr -d '\n')"
         rules_hash="$(git -C "$RULES_HOME" rev-parse HEAD 2>/dev/null || echo "no-git"):${sub_hash:-no-submodules}"
     else
-        rules_hash="$(find "$RULES_HOME" \( -name '*.md' -o -name '*.yaml' -o -name '*.yml' -o -name '*.sh' \) -type f -exec "$hash_cmd" {} + 2>/dev/null | sort | "$hash_cmd" | awk '{print $1}')"
+        # HIST-006: include *.json / *.toml so opencode-rule-template.json and
+        # codex-subagent-template.toml changes trip the staleness check, and
+        # folder-level renames (templates/, subagents/) are implicitly covered
+        # by file enumeration.
+        rules_hash="$(find "$RULES_HOME" \( -name '*.md' -o -name '*.yaml' -o -name '*.yml' -o -name '*.sh' -o -name '*.json' -o -name '*.toml' \) -type f -exec "$hash_cmd" {} + 2>/dev/null | sort | "$hash_cmd" | awk '{print $1}')"
     fi
 
     local overlay_hash
@@ -151,7 +178,10 @@ check_staleness() {
     local cursor_exists=false agents_exists=false
     local skills_ok=true
     [ -d "$PROJECT_DIR/.cursor/rules" ] && [ "$(ls -A "$PROJECT_DIR/.cursor/rules/" 2>/dev/null)" ] && cursor_exists=true
-    [ -f "$PROJECT_DIR/.agent-rules/AGENTS.md" ] && agents_exists=true
+    # HIST-007: root entry switched from .agent-rules/AGENTS.md to
+    # AGENTS.override.md. Codex's discovery picks AGENTS.override.md
+    # ahead of AGENTS.md in the same directory.
+    [ -f "$PROJECT_DIR/AGENTS.override.md" ] && agents_exists=true
 
     # HIST-005: manifest entries are prefix-qualified (e.g. 'gla-pre-commit')
     # while source names are bare ('pre-commit'). Compare against the prefixed
@@ -180,16 +210,28 @@ check_staleness() {
 
     # Mode-aware required artifacts. HIST-004: CLAUDE.md no longer tracked
     # — only AGENTS.md remains as the legacy artifact (for Codex).
-    local cc_rules_ok=true codex_config_ok=true
+    # HIST-006: opencode.json is marker-gated (_generated_by:"agent-sync") so
+    # we only treat it as required when the file is either absent or carries
+    # our marker. A user-authored opencode.json is left alone by sync, and
+    # therefore should not be driving staleness either way.
+    local cc_rules_ok=true codex_config_ok=true opencode_config_ok=true
     local agents_required=true
     [ "$CC_MODE" != "off" ] && { [ -d "$PROJECT_DIR/.claude/rules" ] && [ -n "$(ls "$PROJECT_DIR/.claude/rules/"*.md 2>/dev/null)" ] || cc_rules_ok=false; }
     [ "$CODEX_MODE" = "native" ] && { [ -f "$PROJECT_DIR/.codex/config.toml" ] || codex_config_ok=false; }
     [ "$CODEX_MODE" = "off" ] && agents_required=false
+    if [ "${OPENCODE_MODE:-native}" = "native" ]; then
+        if [ -f "$PROJECT_DIR/opencode.json" ]; then
+            grep -q '"_generated_by": "agent-sync"' "$PROJECT_DIR/opencode.json" 2>/dev/null \
+                || opencode_config_ok=true  # user-owned → not our staleness concern
+        else
+            opencode_config_ok=false
+        fi
+    fi
 
     local legacy_ok=true
     $agents_required && ! $agents_exists && legacy_ok=false
 
-    if [ "$CURRENT_HASH" = "$stored_hash" ] && $cursor_exists && $legacy_ok && $skills_ok && $cc_rules_ok && $codex_config_ok; then
+    if [ "$CURRENT_HASH" = "$stored_hash" ] && $cursor_exists && $legacy_ok && $skills_ok && $cc_rules_ok && $codex_config_ok && $opencode_config_ok; then
         _ok "Rules up to date. No sync needed."
         exit 0
     fi

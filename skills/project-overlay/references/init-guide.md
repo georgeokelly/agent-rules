@@ -171,8 +171,9 @@ Phase 1 + Phase 2 完成后，执行以下步骤：
 ```
 📋 生成完成。此文件将通过 agent-sync 编译为以下工具的规则：
   - Cursor: .cursor/rules/project-overlay.mdc（alwaysApply: true）
-  - Claude Code: .agent-rules/CLAUDE.md（拼接到末尾）
-  - Codex: .agent-rules/AGENTS.md（与 CLAUDE.md 相同）
+  - Claude Code: .claude/rules/*.md（HIST-004 原生 per-file）
+  - Codex: 项目根 AGENTS.override.md（HIST-007 Codex 专属入口）
+  - OpenCode: opencode.json + .opencode/skills/（HIST-006）
 请执行 `agent-sync .` 生成上述文件。
 ```
 

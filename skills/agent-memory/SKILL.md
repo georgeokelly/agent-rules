@@ -1,10 +1,24 @@
 ---
+# Spec (required)
 name: agent-memory
 description: >-
   Dump and resume agent working context across sessions via structured files.
   Use when the user asks to save context, dump memory, resume a previous session,
   保存上下文, 继续上次任务, or when a paused session is detected that matches
   the current task. Commands: /agent-memory dump, /agent-memory resume, /agent-memory knowledge.
+
+# Spec (optional)
+license: MIT
+compatibility: Cross-tool (Cursor, Claude Code, Codex). Requires filesystem access.
+metadata:
+  author: georgel
+  version: "1.2"
+
+# Spec (experimental)
+# allowed-tools: Bash(git add *) Bash(git commit *) Read  # support claude only
+# disable-model-invocation: true                          # support cursor + claude
+
+# Spec (claude-only)
 when_to_use: >-
   Use when the user explicitly asks to save / dump / checkpoint the current
   working context, resume a previous session, or distill a knowledge note —
@@ -12,10 +26,20 @@ when_to_use: >-
   is about to happen (auto-dump). Also use passively when a paused session
   hint in .cursor/rules/agent-memory-hint.mdc is clearly related to the
   user's current task. Do NOT use just to take notes during a live task.
-compatibility: Cross-tool (Cursor, Claude Code, Codex). Requires filesystem access.
-metadata:
-  author: georgel
-  version: "1.2"
+# argument-hint: "[issue-number] [branch]"
+# arguments: [issue, branch]
+# user-invocable: true
+# model: sonnet        # sonnet / opus / haiku / id / inherit
+# effort: medium       # low / medium / high / xhigh / max
+# context: fork        # When forking, run the body in an independent subagent context
+# agent: general-purpose
+# hooks:
+#   PreToolUse: ./hooks/<pre.sh>
+#   PostToolUse: ./hooks/<post.sh>
+#   Stop: ./hooks/<stop.sh>
+# paths:
+#   - "src/**/*.ts"
+# shell: bash          # bash / powershell
 ---
 
 # Agent Memory

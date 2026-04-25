@@ -1,0 +1,35 @@
+description: <WHAT the sub-agent does>. Use when <trigger scenarios>.
+mode: <primary / subagent / all>
+model: <provider/model-id>
+prompt: "{file:<path/to/prompt.txt>}"
+temperature: <float 0.0-2.0, provider-specific>
+top_p: <float 0.0-1.0>
+steps: <integer step limit>
+disable: <true / false>
+permission:
+  # `"*"` is a reserved wildcard (default-fallback rule) and is kept verbatim;
+  # Every other key is a <...> placeholder to be replaced. The same convention
+  # applies to the `skill` and `task` sub-blocks below.
+  # `"*"` is a fallback wildcard (default rule), keep as-is; other keys are <...> placeholders.
+  # The skill/task sub-blocks below follow the same convention.
+  read: <allow | ask | deny>
+  edit: <allow | ask | deny>
+  glob: <allow | ask | deny>
+  grep: <allow | ask | deny>
+  bash:
+    "*": <allow | ask | deny>
+    "<command-pattern>": <allow | ask | deny>
+  webfetch: <allow | ask | deny>
+  websearch: <allow | ask | deny>
+  codesearch: <allow | ask | deny>
+  skill:
+    "*": <allow | ask | deny>
+    "<skill-name-pattern>": <allow | ask | deny>
+  task:
+    "*": <allow | ask | deny>
+    "<subagent-name-or-pattern>": <allow | ask | deny>
+hidden: <true / false>
+color: <hex / primary / accent / success / warning / error / info / ...>
+# passthrough keys / Any other key-value pair is directly passed through to the provider
+reasoningEffort: <low / medium / high>
+textVerbosity: <low / medium / high>
