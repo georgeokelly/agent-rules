@@ -579,6 +579,7 @@ After modifying rules, test with these fixed tasks across all 4 tools (Cursor / 
 8. **Refactor**: "Extract the memory management code into a separate utility class" / 将内存管理代码提取为独立工具类
 9. **Ask mode**: "How does the MatMul kernel handle non-square matrices?" (expect citations) / 问答模式：解释 kernel 如何处理非方阵（期望有引用）
 10. **Small fix**: "Fix the typo in the docstring of train_model" (expect Fast Track) / 修复一个 typo（期望使用快速通道）
+11. **Fast Track trigger**: "FT: rename `helper` to `helperImpl` in `foo.py`" (expect direct execution, no Stage 1-2) / 显式触发快速通道：包含 `FT` 等关键词时直接执行，跳过 Stage 1-2
 
 **Pass criteria / 通过标准**: All 4 tools produce structurally similar output, follow the correct workflow stage, and respect MUST-level rules.
 

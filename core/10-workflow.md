@@ -55,8 +55,18 @@ The following situations **MAY** skip Stages 1-2 and proceed directly to executi
 - User has provided a complete, unambiguous solution
 - Pure information queries (no code changes involved)
 - Simple rename / find-and-replace tasks
+- User explicitly opts in via a trigger token (see below)
 
 When using Fast Track, briefly state what you are doing and why the full workflow is unnecessary.
+
+### Explicit Fast Track triggers
+
+If the user's prompt contains one of these tokens, treat it as a binding override of the 3-stage default regardless of task complexity — the user has signaled the analysis is already done:
+
+- `FT` — uppercase only, standalone token (must NOT be a substring of words like `LIFT` or `DFT`; lowercase `ft` does NOT trigger to avoid false matches like `aircraft` or `lift`)
+- `fast track`, `fast-track`, `Fast Track` — case-insensitive
+
+Honor the trigger whether it appears in the initial task prompt or in any follow-up message; act on it immediately, do not re-prompt for confirmation. Still emit the brief "what / why" line above so the override is auditable in transcript.
 
 ---
 
