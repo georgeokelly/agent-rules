@@ -75,6 +75,13 @@ AGENTS.md), then:
    + grouped body).
 3. Evaluate Co-authorship: add the `Co-authored-by` trailer only when
    warranted per the rules.
+   - Use the trailer for the actual AI tool that wrote, modified, or
+     refactored programming code. Do not copy a trailer for a different tool.
+   - Use the project's known trailer map when available: Cursor, OpenAI Codex,
+     Claude Code, and OpenCode each have distinct trailers.
+   - If the project rules hard-code a different tool's trailer, treat those
+     rules as stale and surface the mismatch instead of emitting the wrong
+     identity.
 
 ### Step 4 — Output the command
 

@@ -58,13 +58,23 @@ Migration:
 
 ## Co-authorship (MUST evaluate correctly)
 
-- **MUST** add `Co-authored-by: Cursor <cursoragent@cursor.com>` if the AI agent wrote, modified, or refactored any programming code being committed in the current session — even if the commit also contains non-code files.
+- **MUST** add a `Co-authored-by` trailer if the AI agent wrote, modified, or refactored any programming code being committed in the current session — even if the commit also contains non-code files.
+- **MUST** use the trailer that matches the actual AI tool that wrote, modified, or refactored the programming code. **MUST NOT** claim a different tool's identity.
 - **MUST NOT** add the trailer when AI contributions are limited to commit-message drafting, review comments, planning, or Q&A.
 - **MUST NOT** add the trailer when a commit contains only non-programming content (e.g., Markdown, HTML, plain text docs, config files) even if the AI edited them.
 - "Programming code" means source code in languages such as Python, TypeScript, C/C++, Rust, CUDA, shell scripts, etc. It excludes markup (Markdown, HTML), data formats (JSON, YAML, TOML), and plain text.
 
+Use the matching trailer:
+
+| AI tool | Trailer |
+|---|---|
+| Cursor / Cursor Agent | `Co-authored-by: Cursor <cursoragent@cursor.com>` |
+| OpenAI Codex / Codex | `Co-authored-by: OpenAI Codex <codex@openai.com>` |
+| Claude Code | `Co-authored-by: Claude <noreply@anthropic.com>` |
+| OpenCode | `Co-authored-by: opencode <noreply@opencode.ai>` |
+
 ```
-Co-authored-by: Cursor <cursoragent@cursor.com>
+Co-authored-by: OpenAI Codex <codex@openai.com>
 ```
 
 ## Commit Execution Policy (MUST)
