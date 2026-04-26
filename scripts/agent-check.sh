@@ -675,8 +675,9 @@ fi
 fi  # end CODEX_MODE = native
 
 # --- 16-18. OpenCode native checks (only when OpenCode Mode = native) ---
-# HIST-006: OpenCode parity with Cursor/CC/Codex. opencode.json is marker-
-# gated (see gen-opencode.sh) — absent marker = user-authored, which is
+# HIST-006/HIST-009: OpenCode parity with Cursor/CC/Codex. opencode.json is
+# stamp-gated (see gen-opencode.sh) because OpenCode's strict schema rejects
+# unknown top-level marker fields. Absent stamp = user-authored, which is
 # allowed; we only require the file to be valid JSON in that case.
 
 if [ "$OPENCODE_MODE" = "native" ]; then
@@ -706,10 +707,14 @@ if [ -f "$OPENCODE_CONFIG" ]; then
         warn "Cannot validate opencode.json syntax (neither python3 nor node available)"
     fi
 
-    # Step 2: only agent-sync-owned files (carrying the sentinel marker)
-    # are expected to match the instructions globs we emit. User-authored
-    # files pass as-is.
-    if grep -q '"_generated_by": "agent-sync"' "$OPENCODE_CONFIG" 2>/dev/null; then
+    # Step 2: reject legacy in-file ownership markers. They are valid JSON but
+    # invalid OpenCode config under the strict schema.
+    if grep -q "$OPENCODE_LEGACY_MARKER" "$OPENCODE_CONFIG" 2>/dev/null; then
+        fail "opencode.json contains legacy _generated_by marker; run agent-sync to migrate"
+    # Step 3: only agent-sync-owned files (carrying the external stamp) are
+    # expected to match the instructions globs we emit. User-authored files
+    # pass as-is.
+    elif [ -f "$OPENCODE_CONFIG_STAMP" ]; then
         # instructions must at minimum reference .cursor/rules/*.mdc —
         # that is the unconditional emitter (see generate_opencode_config).
         if grep -q '\.cursor/rules/\*\.mdc' "$OPENCODE_CONFIG"; then

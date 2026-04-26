@@ -99,11 +99,17 @@ do_clean() {
     rmdir "$PROJECT_DIR/.agents" 2>/dev/null || true
     rmdir "$PROJECT_DIR/.codex" 2>/dev/null || true
 
-    # HIST-006: OpenCode cleanup.
-    # opencode.json removal is marker-gated ("_generated_by": "agent-sync")
-    # so a user-authored config is preserved.
-    if [ -f "$PROJECT_DIR/opencode.json" ] && grep -q '"_generated_by": "agent-sync"' "$PROJECT_DIR/opencode.json" 2>/dev/null; then
-        rm -f "$PROJECT_DIR/opencode.json"
+    # HIST-006/HIST-009: OpenCode cleanup.
+    # opencode.json removal is stamp-gated so a user-authored config is
+    # preserved. Legacy in-file marker configs are also removed as managed.
+    local opencode_config_managed=false
+    [ -f "$OPENCODE_CONFIG_STAMP" ] && opencode_config_managed=true
+    if [ -f "$PROJECT_DIR/opencode.json" ] \
+        && grep -q "$OPENCODE_LEGACY_MARKER" "$PROJECT_DIR/opencode.json" 2>/dev/null; then
+        opencode_config_managed=true
+    fi
+    if $opencode_config_managed; then
+        rm -f "$PROJECT_DIR/opencode.json" "$OPENCODE_CONFIG_STAMP"
         echo "  Removed opencode.json (agent-sync managed)"
     elif [ -f "$PROJECT_DIR/opencode.json" ]; then
         _warn "  SKIP: opencode.json is not managed by agent-sync — left intact."

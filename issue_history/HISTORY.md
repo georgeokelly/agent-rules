@@ -47,6 +47,7 @@ Copy the block below when creating a new entry.
 
 | ID | Title / 标题 | Status / 状态 | Date / 日期 |
 |----|-------------|--------------|------------|
+| HIST-009 | OpenCode config ownership 改为 external stamp | Closed | 2026-04-27 |
 | HIST-008 | 后台同步脚本改名（async-agent-rules → async-agent-toolkit） | Closed | 2026-04-26 |
 | HIST-007 | Codex 入口 AGENTS.override.md 化 + sub-repo 双注入修复 | Closed | 2026-04-25 |
 | HIST-006 | OpenCode 原生集成 + 每工具 subagent 部署骨架 | Closed | 2026-04-25 |
@@ -60,6 +61,50 @@ Copy the block below when creating a new entry.
 ---
 
 ## Records / 记录
+
+### HIST-009: OpenCode config ownership 改为 external stamp
+
+- **Status / 状态**: Closed
+- **Date / 日期**: 2026-04-27
+- **Scope / 范围**: `scripts/lib/gen-opencode.sh`, `scripts/lib/paths.sh`, `scripts/lib/resolve.sh`, `scripts/lib/sync.sh`, `scripts/lib/clean.sh`, `scripts/agent-check.sh`, `scripts/agent-sync.sh`, `scripts/agent-test.sh`, `README.md`, `issue_history/HISTORY.md`
+
+#### 背景 / Background
+
+HIST-006 为了保护手写 `opencode.json`，把 `"_generated_by": "agent-sync"` 写进 config body 作为 ownership marker。但 `opencode-nvidia` 的 config schema 是 strict，未知顶层 key 会被拒绝，实际启动时报：
+
+```text
+Configuration is invalid at .../opencode.json
+↳ Unrecognized key: "_generated_by"
+```
+
+这说明 ownership metadata 不能放进 OpenCode 原生 config。原有 `agent-check` 只验证 JSON parse 和 glob 字符串，没有按 OpenCode strict schema 验证，因此没有提前抓住该问题。
+
+#### 设计 / Design
+
+采用 external stamp：`opencode.json` 只保留 OpenCode schema 认可的字段，ownership 由 `.opencode/.config-json-agent-sync` 表示。
+
+- `opencode.json` 存在且无 stamp → 视为 user-managed，sync / clean / reconcile 不改不删。
+- `opencode.json` 存在且有 stamp → 视为 agent-sync-managed，可以覆盖、clean、off-mode reconcile。
+- pre-HIST-009 文件如果仍含 `"_generated_by": "agent-sync"` → 视为 legacy managed，下一次 sync 会重写为无 legacy key 的 strict-schema JSON，并创建 stamp。
+
+#### 实现 / Implementation
+
+| 文件 | 变更 |
+|------|------|
+| `scripts/lib/paths.sh` | 新增 `OPENCODE_CONFIG_STAMP`；保留 `OPENCODE_LEGACY_MARKER` 仅用于迁移旧文件 |
+| `scripts/lib/gen-opencode.sh` | 删除 heredoc 中的 `_generated_by`；生成前用 stamp / legacy marker 判断所有权；写入后 touch stamp |
+| `scripts/lib/resolve.sh` | legacy marker 触发 staleness，确保旧文件不会因为 hash 命中而跳过迁移 |
+| `scripts/lib/sync.sh` / `scripts/lib/clean.sh` | off-mode / clean 改用 stamp-gated 删除；legacy marker 文件作为 managed 兼容处理 |
+| `scripts/agent-check.sh` | 对 legacy `_generated_by` 报 fail；对 stamp-managed config 检查 `.cursor/rules/*.mdc` glob |
+| `scripts/agent-test.sh` | T20 / T21 / T24 改查 stamp 和无 legacy marker；新增 T22b 覆盖 legacy marker → stamp migration |
+| `README.md` | OpenCode ownership 文档从 marker-gated 改为 stamp-gated |
+
+#### Limitations / 局限性
+
+- `agent-check` 仍未直接调用 OpenCode schema validator；它通过禁止 legacy marker 和检查关键 glob 覆盖本次问题。若 OpenCode schema 后续继续收紧，最好补一个可选的 `opencode --help` / schema validation smoke test。
+- 曾经手动删除 legacy marker 且没有 stamp 的 `opencode.json` 会被视为 user-managed。若要重新交给 `agent-sync` 管理，删除该文件后重新运行 `agent-sync`。
+
+---
 
 ### HIST-008: 后台同步脚本改名（async-agent-rules → async-agent-toolkit）
 

@@ -210,10 +210,10 @@ check_staleness() {
 
     # Mode-aware required artifacts. HIST-004: CLAUDE.md no longer tracked
     # — only AGENTS.md remains as the legacy artifact (for Codex).
-    # HIST-006: opencode.json is marker-gated (_generated_by:"agent-sync") so
-    # we only treat it as required when the file is either absent or carries
-    # our marker. A user-authored opencode.json is left alone by sync, and
-    # therefore should not be driving staleness either way.
+    # HIST-009: opencode.json ownership is tracked by an external stamp. A
+    # legacy in-file marker forces staleness so the next sync rewrites it into
+    # strict-schema JSON. A user-authored opencode.json is left alone by sync
+    # and therefore should not drive staleness either way.
     local cc_rules_ok=true codex_config_ok=true opencode_config_ok=true
     local agents_required=true
     [ "$CC_MODE" != "off" ] && { [ -d "$PROJECT_DIR/.claude/rules" ] && [ -n "$(ls "$PROJECT_DIR/.claude/rules/"*.md 2>/dev/null)" ] || cc_rules_ok=false; }
@@ -221,8 +221,13 @@ check_staleness() {
     [ "$CODEX_MODE" = "off" ] && agents_required=false
     if [ "${OPENCODE_MODE:-native}" = "native" ]; then
         if [ -f "$PROJECT_DIR/opencode.json" ]; then
-            grep -q '"_generated_by": "agent-sync"' "$PROJECT_DIR/opencode.json" 2>/dev/null \
-                || opencode_config_ok=true  # user-owned → not our staleness concern
+            if [ -f "$OPENCODE_CONFIG_STAMP" ]; then
+                opencode_config_ok=true
+            elif grep -q "$OPENCODE_LEGACY_MARKER" "$PROJECT_DIR/opencode.json" 2>/dev/null; then
+                opencode_config_ok=false
+            else
+                opencode_config_ok=true  # user-owned → not our staleness concern
+            fi
         else
             opencode_config_ok=false
         fi

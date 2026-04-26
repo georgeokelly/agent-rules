@@ -50,7 +50,7 @@ SUBCOMMANDS
     cc-skills           Only sync skills to .claude/skills/.
     skills              Only sync skills to .cursor/skills/.
     opencode            Only generate all OpenCode files (config + skills + subagents).
-    opencode-config     Only generate opencode.json (marker-gated, HIST-006).
+    opencode-config     Only generate opencode.json (stamp-gated, HIST-009).
     opencode-skills     Only sync skills to .opencode/skills/.
     opencode-subagents  Only sync OpenCode subagents to .opencode/agent/ (skeleton).
     subagents           Run all per-tool subagent deploys (.cursor/agents/,
@@ -67,7 +67,7 @@ NOTE
     back to 'native' with a warning.
 
     OpenCode was added in HIST-006. Default OpenCode Mode is 'native', which
-    emits a marker-gated opencode.json at the project root (pointing at the
+    emits a stamp-gated opencode.json at the project root (pointing at the
     existing .cursor/rules/ and .claude/rules/ files — no second rule
     compilation). Set '**OpenCode Mode**: off' in .agent-local.md to disable.
 
@@ -304,7 +304,7 @@ case "$SUBCOMMAND" in
             generate_codex_skills
             generate_codex_subagents
         fi
-        # HIST-006: OpenCode native outputs (marker-gated opencode.json +
+        # HIST-006/HIST-009: OpenCode native outputs (stamp-gated opencode.json +
         # .opencode/skills + .opencode/agent). Off mode is handled by
         # reconcile_mode_outputs earlier in this block.
         if [ "$OPENCODE_MODE" = "native" ]; then

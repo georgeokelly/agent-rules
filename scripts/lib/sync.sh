@@ -99,13 +99,20 @@ reconcile_mode_outputs() {
         rmdir "$PROJECT_DIR/.agents" 2>/dev/null || true
     fi
 
-    # HIST-006: OpenCode off-mode reconciliation. opencode.json removal is
-    # marker-gated so a user-authored config is never deleted; .opencode/
-    # subtrees are manifest-gated so user-added files under them are
-    # preserved while agent-sync-managed artifacts disappear.
+    # HIST-006/HIST-009: OpenCode off-mode reconciliation. opencode.json
+    # removal is stamp-gated; legacy in-file marker configs are also treated
+    # as managed for upgrade cleanup. .opencode/ subtrees are manifest-gated so
+    # user-added files under them are preserved while agent-sync-managed
+    # artifacts disappear.
     if [ "${OPENCODE_MODE:-native}" = "off" ]; then
-        if [ -f "$PROJECT_DIR/opencode.json" ] && grep -q "$OPENCODE_MARKER" "$PROJECT_DIR/opencode.json" 2>/dev/null; then
-            rm -f "$PROJECT_DIR/opencode.json"
+        local opencode_config_managed=false
+        [ -f "$OPENCODE_CONFIG_STAMP" ] && opencode_config_managed=true
+        if [ -f "$PROJECT_DIR/opencode.json" ] \
+            && grep -q "$OPENCODE_LEGACY_MARKER" "$PROJECT_DIR/opencode.json" 2>/dev/null; then
+            opencode_config_managed=true
+        fi
+        if $opencode_config_managed; then
+            rm -f "$PROJECT_DIR/opencode.json" "$OPENCODE_CONFIG_STAMP"
             echo "  Reconciled OpenCode Mode=off: removed opencode.json"
         fi
         if [ -f "$OPENCODE_SKILLS_MANIFEST" ] || [ -f "$OPENCODE_SUBAGENTS_MANIFEST" ]; then
@@ -114,8 +121,8 @@ reconcile_mode_outputs() {
             rmdir "$PROJECT_DIR/.opencode/skills" 2>/dev/null || true
             clean_manifest "$OPENCODE_SUBAGENTS_MANIFEST" "$PROJECT_DIR/.opencode/agent" "files"
             rmdir "$PROJECT_DIR/.opencode/agent" 2>/dev/null || true
-            rmdir "$PROJECT_DIR/.opencode" 2>/dev/null || true
         fi
+        rmdir "$PROJECT_DIR/.opencode" 2>/dev/null || true
     fi
 }
 

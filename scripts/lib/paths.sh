@@ -44,9 +44,12 @@ CODEX_CONFIG_STAMP="$PROJECT_DIR/.codex/.config-toml-agent-sync"
 # dedicated .agents/agents/ subdir keeps them separate from the skill tree.
 CODEX_SUBAGENTS_MANIFEST="$PROJECT_DIR/.agents/agents/.agent-sync-subagents-manifest"
 
-# --- OpenCode manifests (HIST-006) -----------------------------------------
-# opencode.json itself is marker-gated in-file ("_generated_by": "agent-sync")
-# so no stamp file is needed for the root-level config.
+# --- OpenCode manifests + stamps (HIST-006, HIST-009) -----------------------
+# HIST-009 moved opencode.json ownership out of the JSON body because OpenCode's
+# config schema is strict and rejects unknown top-level keys. The legacy marker
+# constant remains for one-time migration/cleanup of pre-HIST-009 files.
 
+OPENCODE_CONFIG_STAMP="$PROJECT_DIR/.opencode/.config-json-agent-sync"
+OPENCODE_LEGACY_MARKER='"_generated_by": "agent-sync"'
 OPENCODE_SKILLS_MANIFEST="$PROJECT_DIR/.opencode/skills/.agent-sync-skills-manifest"
 OPENCODE_SUBAGENTS_MANIFEST="$PROJECT_DIR/.opencode/agent/.agent-sync-subagents-manifest"
