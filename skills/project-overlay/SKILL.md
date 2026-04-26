@@ -1,7 +1,7 @@
 ---
 # Spec (required)
 name: project-overlay
-description: Create or update project-specific AI configuration (.agent-local.md) through guided conversation. Use when the user wants to create overlay, init project, setup agent rules, 创建项目配置, 初始化规则, update overlay, 更新项目配置, or when .agent-local.md is missing or outdated.
+description: Create or update project-specific AI configuration (.agent-local.md) through guided conversation. Use when the user wants to create overlay, initialize project rules, set up agent rules, update overlay, refresh project configuration, or when .agent-local.md is missing or outdated.
 
 # Spec (optional)
 license: MIT
@@ -42,59 +42,73 @@ when_to_use: >-
 
 # Project Overlay
 
-通过引导式对话创建或更新项目的 `.agent-local.md` 配置文件，取代手动逐字段填写。
+Create or update a project's `.agent-local.md` configuration file through guided
+conversation instead of manually filling each field.
 
-## 流程路由
+## Flow Routing
 
-根据当前状态选择执行路径：
+Choose the execution path based on current project state:
 
-**创建新 overlay？**（项目中不存在 `.agent-local.md`）→ 执行 Init Flow
-**更新已有 overlay？**（`.agent-local.md` 已存在）→ 执行 Update Flow
+**Create a new overlay?** (`.agent-local.md` does not exist in the project) -> run Init Flow
+**Update an existing overlay?** (`.agent-local.md` already exists) -> run Update Flow
 
 ### Init Flow
 
-1. 读取 [init-guide.md](references/init-guide.md)
-2. 读取项目中的 `overlay-template.md`（位于 `$AGENT_TOOLKIT_HOME/templates/overlay-template.md`，其中包含 `@schema` 约束注释）
-3. 按 init-guide 的两阶段对话流程与用户交互
-4. 生成 `.agent-local.md`（含格式校验门控 + 原子写入）
+1. Read [init-guide.md](references/init-guide.md)
+2. Read the project `overlay-template.md` at
+   `$AGENT_TOOLKIT_HOME/templates/overlay-template.md`; it contains `@schema`
+   constraint comments
+3. Follow the two-stage guided conversation in init-guide
+4. Generate `.agent-local.md` with format-validation gating and atomic write
 
 ### Update Flow
 
-1. 读取 [update-guide.md](references/update-guide.md)
-2. 读取 `overlay-template.md`（含 `@schema`）和当前 `.agent-local.md`
-3. 按 update-guide 的流程执行局部刷新
+1. Read [update-guide.md](references/update-guide.md)
+2. Read `overlay-template.md`, including `@schema`, and the current
+   `.agent-local.md`
+3. Follow update-guide to perform a targeted refresh
 
-## 被动发现
+## Passive Discovery
 
-在日常执行任务时，如果检测到以下信号，主动提议运行 Update Flow：
+During normal task execution, proactively propose Update Flow when any of these
+signals appear:
 
-- 项目中出现 `.agent-local.md` 未记录的新语言/框架文件（如出现 `.tsx` 但 Packs 无前端包）
-- 目录结构与 Project Structure 描述明显不符
-- 构建命令与实际使用不匹配
+- New language or framework files are present but not recorded in
+  `.agent-local.md`, such as `.tsx` files when `Packs:` does not include a
+  frontend pack
+- The directory structure clearly disagrees with the `Project Structure`
+  description
+- Build commands no longer match actual usage
 
-提议应贴合开发意图，例如：
-> 我注意到项目新增了 React 组件，需要更新 Packs 和目录结构吗？
+The proposal should fit the development intent. Example:
+> I noticed that the project now includes React components. Should I update Packs and the project structure?
 
-## 关键文件
+## Key Files
 
-| 文件 | 位置 | 用途 |
+| File | Location | Purpose |
 |------|------|------|
-| `overlay-template.md` | `$AGENT_TOOLKIT_HOME/templates/` | 模板 + @schema 约束（Single Source of Truth） |
-| `.agent-local.md` | 项目根目录 | 项目配置文件（用户提交到 git） |
-| `init-guide.md` | `references/` | 初始化对话脚本 |
-| `update-guide.md` | `references/` | 更新对话脚本 |
+| `overlay-template.md` | `$AGENT_TOOLKIT_HOME/templates/` | Template plus `@schema` constraints; the single source of truth |
+| `.agent-local.md` | Project root | Project configuration file committed by the user |
+| `init-guide.md` | `references/` | Initialization conversation script |
+| `update-guide.md` | `references/` | Update conversation script |
 
-## 语言约束
+## Language Constraints
 
-- **对话语言**：跟随用户语言（如中文）
-- **文件输出语言**：`.agent-local.md` / `.agent-local.md.tmp` 的所有内容 **MUST** 使用英文（HTML 注释除外），与 `overlay-template.md` 保持一致
-- **原因**：`agent-sync` 直接从 `.agent-local.md` 提取内容生成下游规则文件，非英文内容会导致规则中英混杂
+- **Conversation language**: Follow the user's language.
+- **File output language**: All content in `.agent-local.md` and
+  `.agent-local.md.tmp` **MUST** be English, except HTML comments, and must stay
+  consistent with `overlay-template.md`.
+- **Reason**: `agent-sync` extracts content directly from `.agent-local.md` to
+  generate downstream rule files. Non-English content would produce mixed-language
+  rules.
 
-## 跨工具消费
+## Cross-Tool Consumption
 
-`.agent-local.md` 通过 `agent-sync` 编译为多个工具的规则：
+`.agent-local.md` is compiled by `agent-sync` into rules for multiple tools:
 
-- **Cursor**: `.cursor/rules/project-overlay.mdc`（alwaysApply: true）
-- **Claude Code**: `.claude/rules/*.md`（HIST-004 起原生 per-file，不再生成 monolithic CLAUDE.md）
-- **Codex**: 项目根 `AGENTS.override.md`（HIST-007 起 Codex 专属入口，Cursor 不会自动注入）
-- **OpenCode**: `opencode.json` + `.opencode/skills/`（HIST-006）
+- **Cursor**: `.cursor/rules/project-overlay.mdc` (alwaysApply: true)
+- **Claude Code**: `.claude/rules/*.md` (native per-file output since HIST-004;
+  no monolithic CLAUDE.md is generated)
+- **Codex**: root-level `AGENTS.override.md` (Codex-specific entrypoint since
+  HIST-007; Cursor does not auto-inject it)
+- **OpenCode**: `opencode.json` + `.opencode/skills/` (HIST-006)

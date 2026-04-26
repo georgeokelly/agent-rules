@@ -4,8 +4,8 @@ name: pre-commit
 description: >-
   Draft a copy-pasteable `git commit` command from staged (or unstaged)
   changes. Use when the user asks to create a commit, write a commit message,
-  `/pre-commit`, 提交, 起草 commit. Does NOT execute git commit — only drafts
-  it for user review.
+  `/pre-commit`, commit preparation, or commit-message drafting. Does NOT
+  execute git commit — only drafts it for user review.
 
 # Spec (optional)
 license: MIT

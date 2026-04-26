@@ -5,9 +5,10 @@ description: >-
   Lightweight single-model third-party review of any artifact (code, design
   doc, plan, PR, diff, config, documentation). Use when the user asks for
   review / critique / audit — e.g. `/review`, `/simple-review`, `review @...`,
-  评审, 审查. Multi-model orchestration (if/when a dedicated `/review` command
-  ships under `extras/agent-extension`) is out of scope for this skill; until
-  then this skill is the single entrypoint for review work.
+  or an existing artifact review request. Multi-model orchestration (if/when a
+  dedicated `/review` command ships under `extras/agent-extension`) is out of
+  scope for this skill; until then this skill is the single entrypoint for
+  review work.
 
 # Spec (optional)
 license: MIT
