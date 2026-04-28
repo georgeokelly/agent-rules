@@ -13,7 +13,7 @@ agent-sync — Sync rules from central repo to project directory
 
 USAGE
     agent-sync [project-dir]                  Full sync (default)
-    agent-sync codex [project-dir]            Only generate AGENTS.md (legacy)
+    agent-sync codex [project-dir]            Only generate root AGENTS.override.md
     agent-sync codex-native [project-dir]     Only generate Codex native files (.codex/)
     agent-sync cc [project-dir]               Only generate all CC native files (.claude/)
     agent-sync cc-rules [project-dir]         Only generate .claude/rules/*.md
@@ -43,7 +43,7 @@ SUBCOMMANDS
                 overlays, and cleans up root-level remnants. Skips if
                 already up to date.
 
-    codex               Only generate root AGENTS.override.md for Codex (legacy mode body).
+    codex               Only generate root AGENTS.override.md for Codex.
     codex-native        Only generate all Codex native files (.codex/config.toml, skills).
     cc                  Only generate all CC native files (.claude/rules/, skills/).
     cc-rules            Only generate .claude/rules/*.md for Claude Code.
@@ -74,7 +74,7 @@ NOTE
 EXAMPLES
     agent-sync                  # Full sync to current directory
     agent-sync ~/my-project     # Full sync to a specific project
-    agent-sync codex .          # Regenerate only AGENTS.md
+    agent-sync codex .          # Regenerate only AGENTS.override.md
     agent-sync cc .             # Regenerate all CC native files
     agent-sync opencode .       # Regenerate all OpenCode native files
     agent-sync clean            # Remove all generated files
@@ -157,7 +157,7 @@ case "$SUBCOMMAND" in
         validate_rules_repo
         resolve_packs
         # HIST-007: AGENTS.override.md replaces the legacy .agent-rules/AGENTS.md
-        # path. The legacy mode body itself is unchanged.
+        # path. The body is now the narrow root Codex rule set.
         echo "Generating AGENTS.override.md for Codex (legacy) in $PROJECT_DIR ..."
         generate_codex
         _ok "Done."

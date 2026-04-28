@@ -342,11 +342,13 @@ cursor-go() { agent-sync "${1:-.}" && cursor "${1:-.}"; }
 
 | Output / 输出 | Path / 路径 | Description / 描述 |
 |---|---|---|
-| Instructions | `AGENTS.override.md` | Assembled monolithic rules at project root / 项目根的整合规则文件 |
+| Instructions | `AGENTS.override.md` | Root Codex rules: Communication, Workflow, Quality Gates, Git Commit Message / Codex 根规则：沟通、工作流、质量门槛、提交信息 |
 | Project config | `.codex/config.toml` | Enables `child_agents_md` for sub-repo overlays / 启用子目录 overlay |
 | Skills | `.agents/skills/<name>/SKILL.md` | Repo-scoped skills (Codex standard discovery path) / 仓库级 skills（Codex 标准发现路径） |
 | Subagents | `.agents/agents/<name>.toml` | Per-tool subagents (HIST-006 skeleton) / 每工具 subagent 骨架 |
 | Sub-repo overlays | `<sub-repo>/AGENTS.override.md` | Per-sub-repo scoped instructions / 子目录范围指令 |
+
+Root `AGENTS.override.md` is intentionally narrow. It does **not** append active language packs (`C++`, `CUDA`, `Markdown`, `Python`, `Shell`, etc.) or the root `.agent-local.md` body; `.agent-local.md` is still read for generation settings and is still emitted to the native Cursor / Claude / OpenCode rule outputs. / 根 `AGENTS.override.md` 刻意保持精简：不会拼接 active language packs（`C++`、`CUDA`、`Markdown`、`Python`、`Shell` 等），也不会拼接根 `.agent-local.md` 正文；`.agent-local.md` 仍用于读取生成配置，并继续输出到 Cursor / Claude / OpenCode 的原生规则文件。
 
 **Codex Mode**: Controlled by `**Codex Mode**:` in `.agent-local.md`. Three modes: / 通过 `.agent-local.md` 中的 `**Codex Mode**:` 控制，三种模式：
 
@@ -366,9 +368,9 @@ The generated `.codex/config.toml` only carries `[features] child_agents_md = tr
 
 **Critical: 32KiB Limit / 关键：32KiB 限制**
 
-Codex has a `project_doc_max_bytes` default of **32,768 bytes**. Content beyond this limit is **silently truncated** — you get no error or warning. `agent-check` validates file size. If your rules exceed this, consider splitting packs into subdirectory `AGENTS.override.md` files.
+Codex has a `project_doc_max_bytes` default of **32,768 bytes**. Content beyond this limit is **silently truncated** — you get no error or warning. `agent-check` validates file size. Root `AGENTS.override.md` excludes language packs by design, so size pressure should be handled by trimming core / Git policy content or moving Codex-specific project guidance into scoped sub-repo overlays.
 
-Codex 的 `project_doc_max_bytes` 默认为 **32,768 字节**。超出此限制的内容会被**静默截断**。`agent-check` 会检查文件大小。如果规则超出限制，可以考虑将 packs 拆分到子目录的 `AGENTS.override.md` 文件。
+Codex 的 `project_doc_max_bytes` 默认为 **32,768 字节**。超出此限制的内容会被**静默截断**。`agent-check` 会检查文件大小。根 `AGENTS.override.md` 默认不包含语言包，因此大小压力应通过精简 core / Git 规则，或把 Codex 专用项目指令放入 scoped sub-repo overlay 处理。
 
 ### Claude Code (Native Support / 原生支持)
 
@@ -723,7 +725,7 @@ If you are upgrading from a version that wrote `.agent-rules/AGENTS.md` and `<su
   - `.agent-rules/CLAUDE.md` (HIST-004 carry-over) — same sweep logic. / 同样 `rm -f`，与 HIST-004 共用清扫路径。
   - `<sub-repo>/AGENTS.md` — `sync_sub_repos()` `rm -f` unconditionally before writing the replacement `AGENTS.override.md` (B1 strategy: agent-sync owns the sub-repo overlay file outright). / `sync_sub_repos()` 写新文件前无差别 `rm -f` 旧 `AGENTS.md`（B1 策略：agent-sync 独占 sub-repo overlay）。
   - `.codex/config.toml` — `generate_codex_config()` rewrites it without `project_doc_fallback_filenames` (only `child_agents_md = true` survives). / 重写 `.codex/config.toml`，移除 `project_doc_fallback_filenames`，仅保留 `child_agents_md = true`。
-  - Root `AGENTS.override.md` — produced by `generate_codex()`. Same content as the old `.agent-rules/AGENTS.md`, just at the new location. / 由 `generate_codex()` 生成，内容与旧 `.agent-rules/AGENTS.md` 一致，只是路径变了。
+  - Root `AGENTS.override.md` — produced by `generate_codex()`. It now contains only Communication, Workflow, Quality Gates, and Git Commit Message rules; language packs and the root `.agent-local.md` body are excluded. / 由 `generate_codex()` 生成。现在只包含沟通、工作流、质量门槛、提交信息规则；语言包和根 `.agent-local.md` 正文不再拼接。
   - **Staleness hash will trigger a one-shot re-sync**: `find` walks `*.json` / `*.toml` for hash computation since HIST-006, so editing template files (or even just the script behaviour change) flips the hash. The first post-upgrade `agent-sync` always re-deploys. / Staleness hash 在 HIST-006 起包含 `*.json` / `*.toml`，升级后第一次 sync 必触发完整 re-deploy。
 
 - **Hard-fails** (behavior change, not silent) / **硬失败**（行为变更，不是静默）
@@ -796,21 +798,21 @@ Run `agent-check .` first. Most common cause: unclosed `---` in frontmatter. Als
 
 **Q: Can I customize rules per tool? / 可以按工具自定义规则吗？**
 
-The core rules and language packs are shared across tools. Tool-specific behavior differences are handled in `10-workflow.md` via the Tool Adaptation Matrix. If you need completely different rules per tool, modify `agent-sync.sh` to generate different content.
+The core rules and language packs are shared by Cursor, Claude Code, and OpenCode native rule outputs. Root Codex output is intentionally narrower: `AGENTS.override.md` includes only Communication, Workflow, Quality Gates, and Git Commit Message. Tool-specific behavior differences are handled in `10-workflow.md` via the Tool Adaptation Matrix.
 
-核心规则和语言包在所有工具间共享。工具特定的行为差异在 `10-workflow.md` 的"工具适配矩阵"中处理。如果需要完全不同的规则，修改 `agent-sync.sh` 生成不同内容。
+核心规则和语言包由 Cursor、Claude Code、OpenCode 的原生规则输出共享。根 Codex 输出刻意更窄：`AGENTS.override.md` 只包含沟通、工作流、质量门槛、提交信息。工具特定的行为差异在 `10-workflow.md` 的"工具适配矩阵"中处理。
 
 **Q: Should `.agent-local.md` be committed to git? / `.agent-local.md` 应该提交到 git 吗？**
 
-Yes. It contains project-specific rules that the whole team (and all AI tools) should follow. For personal preferences (local paths, API keys), Claude Code users can use `CLAUDE.local.md` (auto-gitignored).
+Yes. It contains project-specific rules that the whole team should follow. It is emitted to native Cursor / Claude Code / OpenCode rule outputs and to sub-repo Codex overlays; root Codex uses it for generation settings but does not append its body to root `AGENTS.override.md`. For personal preferences (local paths, API keys), Claude Code users can use `CLAUDE.local.md` (auto-gitignored).
 
-是的。它包含整个团队（和所有 AI 工具）都应遵循的项目特定规则。个人偏好（本地路径、API 密钥）可以放在 Claude Code 的 `CLAUDE.local.md`（自动加入 .gitignore）中。
+是的。它包含整个团队应遵循的项目特定规则，并会输出到 Cursor / Claude Code / OpenCode 的原生规则文件以及 sub-repo Codex overlays；根 Codex 只用它读取生成配置，不会把正文拼进根 `AGENTS.override.md`。个人偏好（本地路径、API 密钥）可以放在 Claude Code 的 `CLAUDE.local.md`（自动加入 .gitignore）中。
 
 **Q: What if AGENTS.override.md exceeds 32KiB? / `AGENTS.override.md` 超过 32KiB 怎么办？**
 
-Split language packs into subdirectory `AGENTS.override.md` files (e.g., `python/AGENTS.override.md`). Codex merges them hierarchically and `child_agents_md = true` in `.codex/config.toml` enables that walk. Or reduce rule content — review for tutorial-style code that can be moved to `docs/examples/`.
+Root `AGENTS.override.md` no longer includes language packs, so first trim core / Git policy content. If a subtree needs extra Codex-specific guidance, put it in that subtree's `.agent-local.md`; `agent-sync` will emit a scoped `<sub-repo>/AGENTS.override.md`, and `child_agents_md = true` enables Codex's hierarchical walk.
 
-将语言包拆分为子目录的 `AGENTS.override.md` 文件（如 `python/AGENTS.override.md`）。Codex 会层级合并，`.codex/config.toml` 里的 `child_agents_md = true` 启用此 walk。或者精简规则内容——检查是否有教程式代码可以移到 `docs/examples/`。
+根 `AGENTS.override.md` 不再包含语言包，因此应优先精简 core / Git 规则。如果某个子树需要额外 Codex 专用指令，把内容放到该子树的 `.agent-local.md`；`agent-sync` 会生成 scoped `<sub-repo>/AGENTS.override.md`，并由 `.codex/config.toml` 的 `child_agents_md = true` 启用层级读取。
 
 **Q: Do HTML comments in `.agent-local.md` waste agent tokens? / `.agent-local.md` 中的 HTML 注释会浪费 token 吗？**
 
